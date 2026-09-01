@@ -172,19 +172,19 @@
     .slider-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px 16px;
+      gap: 10px 14px;
     }
 
     .slider-group {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 2px;
     }
 
     .slider-label {
       display: flex;
       justify-content: space-between;
-      font-size: 12px;
+      font-size: 11px;
       color: #cbd5e1;
     }
 
@@ -282,18 +282,22 @@
 
     <div class="slider-grid">
       <div class="slider-group">
-        <div class="slider-label"><span>前後カバー（縦幅）</span><span class="slider-val">Lv. 8</span></div>
+        <div class="slider-label"><span>前（前方カバー）</span><span class="slider-val">Lv. 8</span></div>
         <input type="range" min="1" max="10" value="8">
       </div>
       <div class="slider-group">
-        <div class="slider-label"><span>左右カバー（横幅）</span><span class="slider-val">Lv. 8</span></div>
-        <input type="range" min="1" max="10" value="8">
+        <div class="slider-label"><span>後（後方カバー）</span><span class="slider-val">Lv. 5</span></div>
+        <input type="range" min="1" max="10" value="5">
       </div>
       <div class="slider-group">
-        <div class="slider-label"><span>前方シフト（オフセット）</span><span class="slider-val">Lv. 2</span></div>
-        <input type="range" min="-5" max="5" value="2">
+        <div class="slider-label"><span>左（左側カバー）</span><span class="slider-val">Lv. 7</span></div>
+        <input type="range" min="1" max="10" value="7">
       </div>
       <div class="slider-group">
+        <div class="slider-label"><span>右（右側カバー）</span><span class="slider-val">Lv. 7</span></div>
+        <input type="range" min="1" max="10" value="7">
+      </div>
+      <div class="slider-group" style="grid-column: span 2;">
         <div class="slider-label"><span>身体の向き（タッチ操作可）</span><span class="slider-val">90°</span></div>
         <input type="range" min="-180" max="180" value="90">
       </div>
@@ -328,96 +332,129 @@
   const court = { x: 40, y: 40, w: 420, h: 620, netY: 350 };
   let currentRotation = 'S1';
 
-  // 各ローテーション初期データ（角度デフォルト: 90°＝正面向き）
-  const defaultRotationData = {
+  // 1. 全ローテーション共通の選手マスターデータ
+  let playersMaster = {
+    'S':   { displayName: '山田', color: '#2563eb', fwd: 7, bwd: 4, left: 5, right: 6 },
+    'OH1': { displayName: '佐藤', color: '#059669', fwd: 8, bwd: 5, left: 7, right: 7 },
+    'MB1': { displayName: '高橋', color: '#d97706', fwd: 6, bwd: 3, left: 5, right: 5 },
+    'OP':  { displayName: '田中', color: '#db2777', fwd: 8, bwd: 5, left: 7, right: 7 },
+    'OH2': { displayName: '伊藤', color: '#059669', fwd: 8, bwd: 5, left: 7, right: 7 },
+    'L':   { displayName: '渡辺', color: '#dc2626', fwd: 9, bwd: 6, left: 8, right: 8 }
+  };
+
+  // 各ローテーションの立ち位置・角度
+  const defaultRotationPositions = {
     S1: [
-      { id: 'S',   posName: 'S',   displayName: '山田', color: '#2563eb', x: 390, y: 430, radiusY: 8, radiusX: 6, shiftY: 2, angle: 90 },
-      { id: 'OH1', posName: 'OH1', displayName: '佐藤', color: '#059669', x: 110, y: 390, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'MB1', posName: 'MB1', displayName: '高橋', color: '#d97706', x: 250, y: 390, radiusY: 6, radiusX: 5, shiftY: 1, angle: 90 },
-      { id: 'OP',  posName: 'OP',  displayName: '田中', color: '#db2777', x: 110, y: 560, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'OH2', posName: 'OH2', displayName: '伊藤', color: '#059669', x: 390, y: 560, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'L',   posName: 'L',   displayName: '渡辺', color: '#dc2626', x: 250, y: 600, radiusY: 9, radiusX: 8, shiftY: 3, angle: 90 }
+      { id: 'S',   posName: 'S',   x: 390, y: 430, angle: 90 },
+      { id: 'OH1', posName: 'OH1', x: 110, y: 390, angle: 90 },
+      { id: 'MB1', posName: 'MB1', x: 250, y: 390, angle: 90 },
+      { id: 'OP',  posName: 'OP',  x: 110, y: 560, angle: 90 },
+      { id: 'OH2', posName: 'OH2', x: 390, y: 560, angle: 90 },
+      { id: 'L',   posName: 'L',   x: 250, y: 600, angle: 90 }
     ],
     S2: [
-      { id: 'S',   posName: 'S',   displayName: '山田', color: '#2563eb', x: 250, y: 390, radiusY: 8, radiusX: 6, shiftY: 2, angle: 90 },
-      { id: 'OH1', posName: 'OH1', displayName: '佐藤', color: '#059669', x: 390, y: 560, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'MB1', posName: 'MB1', displayName: '高橋', color: '#d97706', x: 110, y: 560, radiusY: 6, radiusX: 5, shiftY: 1, angle: 90 },
-      { id: 'OP',  posName: 'OP',  displayName: '田中', color: '#db2777', x: 250, y: 600, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'OH2', posName: 'OH2', displayName: '伊藤', color: '#059669', x: 110, y: 390, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'L',   posName: 'L',   displayName: '渡辺', color: '#dc2626', x: 390, y: 430, radiusY: 9, radiusX: 8, shiftY: 3, angle: 90 }
+      { id: 'S',   posName: 'S',   x: 250, y: 390, angle: 90 },
+      { id: 'OH1', posName: 'OH1', x: 390, y: 560, angle: 90 },
+      { id: 'MB1', posName: 'MB1', x: 110, y: 560, angle: 90 },
+      { id: 'OP',  posName: 'OP',  x: 250, y: 600, angle: 90 },
+      { id: 'OH2', posName: 'OH2', x: 110, y: 390, angle: 90 },
+      { id: 'L',   posName: 'L',   x: 390, y: 430, angle: 90 }
     ],
     S3: [
-      { id: 'S',   posName: 'S',   displayName: '山田', color: '#2563eb', x: 110, y: 390, radiusY: 8, radiusX: 6, shiftY: 2, angle: 90 },
-      { id: 'OH1', posName: 'OH1', displayName: '佐藤', color: '#059669', x: 250, y: 600, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'MB1', posName: 'MB1', displayName: '高橋', color: '#d97706', x: 110, y: 560, radiusY: 6, radiusX: 5, shiftY: 1, angle: 90 },
-      { id: 'OP',  posName: 'OP',  displayName: '田中', color: '#db2777', x: 390, y: 560, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'OH2', posName: 'OH2', displayName: '伊藤', color: '#059669', x: 250, y: 390, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'L',   posName: 'L',   displayName: '渡辺', color: '#dc2626', x: 390, y: 430, radiusY: 9, radiusX: 8, shiftY: 3, angle: 90 }
+      { id: 'S',   posName: 'S',   x: 110, y: 390, angle: 90 },
+      { id: 'OH1', posName: 'OH1', x: 250, y: 600, angle: 90 },
+      { id: 'MB1', posName: 'MB1', x: 110, y: 560, angle: 90 },
+      { id: 'OP',  posName: 'OP',  x: 390, y: 560, angle: 90 },
+      { id: 'OH2', posName: 'OH2', x: 250, y: 390, angle: 90 },
+      { id: 'L',   posName: 'L',   x: 390, y: 430, angle: 90 }
     ],
     S4: [
-      { id: 'S',   posName: 'S',   displayName: '山田', color: '#2563eb', x: 110, y: 560, radiusY: 8, radiusX: 6, shiftY: 2, angle: 90 },
-      { id: 'OH1', posName: 'OH1', displayName: '佐藤', color: '#059669', x: 250, y: 390, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'MB1', posName: 'MB1', displayName: '高橋', color: '#d97706', x: 390, y: 430, radiusY: 6, radiusX: 5, shiftY: 1, angle: 90 },
-      { id: 'OP',  posName: 'OP',  displayName: '田中', color: '#db2777', x: 390, y: 560, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'OH2', posName: 'OH2', displayName: '伊藤', color: '#059669', x: 250, y: 600, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'L',   posName: 'L',   displayName: '渡辺', color: '#dc2626', x: 110, y: 390, radiusY: 9, radiusX: 8, shiftY: 3, angle: 90 }
+      { id: 'S',   posName: 'S',   x: 110, y: 560, angle: 90 },
+      { id: 'OH1', posName: 'OH1', x: 250, y: 390, angle: 90 },
+      { id: 'MB1', posName: 'MB1', x: 390, y: 430, angle: 90 },
+      { id: 'OP',  posName: 'OP',  x: 390, y: 560, angle: 90 },
+      { id: 'OH2', posName: 'OH2', x: 250, y: 600, angle: 90 },
+      { id: 'L',   posName: 'L',   x: 110, y: 390, angle: 90 }
     ],
     S5: [
-      { id: 'S',   posName: 'S',   displayName: '山田', color: '#2563eb', x: 250, y: 600, radiusY: 8, radiusX: 6, shiftY: 2, angle: 90 },
-      { id: 'OH1', posName: 'OH1', displayName: '佐藤', color: '#059669', x: 390, y: 430, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'MB1', posName: 'MB1', displayName: '高橋', color: '#d97706', x: 250, y: 390, radiusY: 6, radiusX: 5, shiftY: 1, angle: 90 },
-      { id: 'OP',  posName: 'OP',  displayName: '田中', color: '#db2777', x: 250, y: 560, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'OH2', posName: 'OH2', displayName: '伊藤', color: '#059669', x: 110, y: 560, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'L',   posName: 'L',   displayName: '渡辺', color: '#dc2626', x: 110, y: 390, radiusY: 9, radiusX: 8, shiftY: 3, angle: 90 }
+      { id: 'S',   posName: 'S',   x: 250, y: 600, angle: 90 },
+      { id: 'OH1', posName: 'OH1', x: 390, y: 430, angle: 90 },
+      { id: 'MB1', posName: 'MB1', x: 250, y: 390, angle: 90 },
+      { id: 'OP',  posName: 'OP',  x: 250, y: 560, angle: 90 },
+      { id: 'OH2', posName: 'OH2', x: 110, y: 560, angle: 90 },
+      { id: 'L',   posName: 'L',   x: 110, y: 390, angle: 90 }
     ],
     S6: [
-      { id: 'S',   posName: 'S',   displayName: '山田', color: '#2563eb', x: 390, y: 560, radiusY: 8, radiusX: 6, shiftY: 2, angle: 90 },
-      { id: 'OH1', posName: 'OH1', displayName: '佐藤', color: '#059669', x: 250, y: 390, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'MB1', posName: 'MB1', displayName: '高橋', color: '#d97706', x: 110, y: 390, radiusY: 6, radiusX: 5, shiftY: 1, angle: 90 },
-      { id: 'OP',  posName: 'OP',  displayName: '田中', color: '#db2777', x: 250, y: 600, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'OH2', posName: 'OH2', displayName: '伊藤', color: '#059669', x: 390, y: 430, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-      { id: 'L',   posName: 'L',   displayName: '渡辺', color: '#dc2626', x: 110, y: 560, radiusY: 9, radiusX: 8, shiftY: 3, angle: 90 }
+      { id: 'S',   posName: 'S',   x: 390, y: 560, angle: 90 },
+      { id: 'OH1', posName: 'OH1', x: 250, y: 390, angle: 90 },
+      { id: 'MB1', posName: 'MB1', x: 110, y: 390, angle: 90 },
+      { id: 'OP',  posName: 'OP',  x: 250, y: 600, angle: 90 },
+      { id: 'OH2', posName: 'OH2', x: 390, y: 430, angle: 90 },
+      { id: 'L',   posName: 'L',   x: 110, y: 560, angle: 90 }
     ]
   };
 
-  // リアルタイムに状態を記憶するオブジェクト
-  let rotationState = JSON.parse(JSON.stringify(defaultRotationData));
+  let rotationPositions = JSON.parse(JSON.stringify(defaultRotationPositions));
 
   let benchPlayers = [
-    { id: 'B1', posName: '控えS',  displayName: '鈴木', color: '#2563eb', radiusY: 7, radiusX: 6, shiftY: 2, angle: 90 },
-    { id: 'B2', posName: '控えOH', displayName: '中村', color: '#059669', radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
-    { id: 'B3', posName: '控えMB', displayName: '小林', color: '#d97706', radiusY: 6, radiusX: 5, shiftY: 1, angle: 90 }
+    { id: 'B1', posName: '控えS',  displayName: '鈴木', color: '#2563eb', fwd: 6, bwd: 4, left: 5, right: 5 },
+    { id: 'B2', posName: '控えOH', displayName: '中村', color: '#059669', fwd: 8, bwd: 5, left: 7, right: 7 },
+    { id: 'B3', posName: '控えMB', displayName: '小林', color: '#d97706', fwd: 6, bwd: 3, left: 5, right: 5 }
   ];
 
-  let courtPlayers = rotationState[currentRotation];
-  let selectedPlayer = courtPlayers[5];
+  let selectedPosId = 'L';
   let activeInteraction = null;
   let touchOffsetX = 0, touchOffsetY = 0;
 
-  function updateUI() {
-    if (!selectedPlayer) return;
-    selectedBadge.textContent = `${selectedPlayer.posName} (${selectedPlayer.displayName})`;
-    selectedBadge.style.backgroundColor = selectedPlayer.color;
-    playerNameInput.value = selectedPlayer.displayName;
+  function getCourtPlayers() {
+    return rotationPositions[currentRotation].map(pos => {
+      const master = playersMaster[pos.id] || { displayName: pos.posName, color: '#3b82f6', fwd: 5, bwd: 5, left: 5, right: 5 };
+      return { ...pos, ...master };
+    });
+  }
 
-    sliders[0].value = selectedPlayer.radiusY;  valTexts[0].textContent = `Lv. ${selectedPlayer.radiusY}`;
-    sliders[1].value = selectedPlayer.radiusX;  valTexts[1].textContent = `Lv. ${selectedPlayer.radiusX}`;
-    sliders[2].value = selectedPlayer.shiftY;   valTexts[2].textContent = `Lv. ${selectedPlayer.shiftY}`;
-    sliders[3].value = selectedPlayer.angle;    valTexts[3].textContent = `${selectedPlayer.angle}°`;
+  function getSelectedPlayer() {
+    const players = getCourtPlayers();
+    return players.find(p => p.id === selectedPosId) || players[0];
+  }
+
+  function updateUI() {
+    const p = getSelectedPlayer();
+    if (!p) return;
+
+    selectedBadge.textContent = `${p.posName} (${p.displayName})`;
+    selectedBadge.style.backgroundColor = p.color;
+    playerNameInput.value = p.displayName;
+
+    sliders[0].value = p.fwd;   valTexts[0].textContent = `Lv. ${p.fwd}`;
+    sliders[1].value = p.bwd;   valTexts[1].textContent = `Lv. ${p.bwd}`;
+    sliders[2].value = p.left;  valTexts[2].textContent = `Lv. ${p.left}`;
+    sliders[3].value = p.right; valTexts[3].textContent = `Lv. ${p.right}`;
+    sliders[4].value = p.angle; valTexts[4].textContent = `${p.angle}°`;
 
     renderBenchList();
   }
 
   playerNameInput.addEventListener('input', (e) => {
-    selectedPlayer.displayName = e.target.value;
+    if (playersMaster[selectedPosId]) {
+      playersMaster[selectedPosId].displayName = e.target.value;
+    }
     updateUI();
     render();
   });
 
-  const keys = ['radiusY', 'radiusX', 'shiftY', 'angle'];
+  const keys = ['fwd', 'bwd', 'left', 'right'];
   sliders.forEach((slider, idx) => {
     slider.addEventListener('input', (e) => {
-      selectedPlayer[keys[idx]] = parseInt(e.target.value);
+      const val = parseInt(e.target.value);
+      if (idx < 4) {
+        if (playersMaster[selectedPosId]) {
+          playersMaster[selectedPosId][keys[idx]] = val;
+        }
+      } else {
+        const currentPos = rotationPositions[currentRotation].find(p => p.id === selectedPosId);
+        if (currentPos) currentPos.angle = val;
+      }
       updateUI();
       render();
     });
@@ -436,7 +473,6 @@
     });
   }
 
-  // --- メンバー交代 ---
   document.getElementById('openSwapModalBtn').addEventListener('click', () => {
     modalBenchList.innerHTML = '';
     if (benchPlayers.length === 0) {
@@ -458,19 +494,29 @@
   document.getElementById('closeModalBtn').addEventListener('click', () => swapModal.close());
 
   window.executeSwap = function(benchIdx) {
-    const cIdx = courtPlayers.findIndex(p => p.id === selectedPlayer.id);
-    if (cIdx === -1) return;
-
-    const courtP = courtPlayers[cIdx];
+    const currentMaster = playersMaster[selectedPosId];
     const benchP = benchPlayers[benchIdx];
 
-    const newCourtP = { ...benchP, id: courtP.id, posName: courtP.posName, x: courtP.x, y: courtP.y };
-    const newBenchP = { ...courtP, id: `B_${Date.now()}` };
+    playersMaster[selectedPosId] = {
+      displayName: benchP.displayName,
+      color: benchP.color,
+      fwd: benchP.fwd,
+      bwd: benchP.bwd,
+      left: benchP.left,
+      right: benchP.right
+    };
 
-    courtPlayers[cIdx] = newCourtP;
-    benchPlayers[benchIdx] = newBenchP;
+    benchPlayers[benchIdx] = {
+      id: `B_${Date.now()}`,
+      posName: '元スタメン',
+      displayName: currentMaster.displayName,
+      color: currentMaster.color,
+      fwd: currentMaster.fwd,
+      bwd: currentMaster.bwd,
+      left: currentMaster.left,
+      right: currentMaster.right
+    };
 
-    selectedPlayer = newCourtP;
     swapModal.close();
     updateUI();
     render();
@@ -484,34 +530,23 @@
       posName: '控え',
       displayName: name,
       color: '#8b5cf6',
-      radiusY: 8, radiusX: 7, shiftY: 2, angle: 90
+      fwd: 7, bwd: 5, left: 6, right: 6
     });
     updateUI();
   });
 
-  // --- ローテーション切替（状態を維持しながら切替） ---
   const rotButtons = document.querySelectorAll('.rot-btn');
   rotButtons.forEach(btn => {
     btn.addEventListener('click', (e) => {
       rotButtons.forEach(b => b.classList.remove('active'));
       e.target.classList.add('active');
 
-      const nextRot = e.target.textContent;
-      currentRotation = nextRot;
-
-      // 切替後のチームデータを取得
-      courtPlayers = rotationState[currentRotation];
-
-      // 前の選択IDを引き継ぐかデフォルトに戻す
-      const samePlayer = courtPlayers.find(p => p.id === selectedPlayer?.id);
-      selectedPlayer = samePlayer || courtPlayers[0];
-
+      currentRotation = e.target.textContent;
       updateUI();
       render();
     });
   });
 
-  // --- LocalStorage 保存・読み込み ---
   function getSavedPatterns() {
     return JSON.parse(localStorage.getItem('volleyball_team_patterns')) || {};
   }
@@ -531,7 +566,7 @@
     const name = prompt('保存するパターン名を入力してください:');
     if (!name) return;
     const patterns = getSavedPatterns();
-    patterns[name] = { rotationState, benchPlayers };
+    patterns[name] = { playersMaster, rotationPositions, benchPlayers };
     localStorage.setItem('volleyball_team_patterns', JSON.stringify(patterns));
     updatePatternSelect();
     patternSelect.value = name;
@@ -554,40 +589,34 @@
     if (!name) return;
     const patterns = getSavedPatterns();
     if (patterns[name]) {
-      rotationState = patterns[name].rotationState;
+      playersMaster = patterns[name].playersMaster;
+      rotationPositions = patterns[name].rotationPositions;
       benchPlayers = patterns[name].benchPlayers || [];
-      courtPlayers = rotationState[currentRotation];
-      selectedPlayer = courtPlayers[0];
       updateUI();
       render();
     }
   });
 
-  // --- キャンバス描画機能 ---
+  // --- 描画関数群 ---
   function drawCourt() {
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 白背景コート
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(court.x, court.y, court.w, court.h);
 
-    // 相手側コート（うっすらグレー）
     ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
     ctx.fillRect(court.x, court.y, court.w, court.netY - court.y);
 
-    // アタックライン（黒）
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(court.x, court.netY - 100); ctx.lineTo(court.x + court.w, court.netY - 100); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(court.x, court.netY + 100); ctx.lineTo(court.x + court.w, court.netY + 100); ctx.stroke();
 
-    // コート外枠（黒）
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 4;
     ctx.strokeRect(court.x, court.y, court.w, court.h);
 
-    // ネット（太い黒ライン）
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 6;
     ctx.beginPath();
@@ -596,24 +625,34 @@
     ctx.stroke();
   }
 
-  // 守備範囲（90°が正面＝上向き）
+  function createSmoothPath(ctx, rFwd, rBwd, rLeft, rRight) {
+    const K = 0.5522847;
+    ctx.beginPath();
+    ctx.moveTo(0, -rFwd);
+    ctx.bezierCurveTo(rRight * K, -rFwd, rRight, -rFwd * K, rRight, 0);
+    ctx.bezierCurveTo(rRight, rBwd * K, rRight * K, rBwd, 0, rBwd);
+    ctx.bezierCurveTo(-rLeft * K, rBwd, -rLeft, rBwd * K, -rLeft, 0);
+    ctx.bezierCurveTo(-rLeft, -rFwd * K, -rLeft * K, -rFwd, 0, -rFwd);
+    ctx.closePath();
+  }
+
   function drawDefenseAreas() {
+    const courtPlayers = getCourtPlayers();
     courtPlayers.forEach(p => {
       ctx.save();
       ctx.translate(p.x, p.y);
-      // 90°＝上（ネット方向）になるよう調整
       ctx.rotate(((p.angle - 90) * Math.PI) / 180);
 
-      const ry = p.radiusY * 12; // 縦（前後）
-      const rx = p.radiusX * 12; // 横（左右）
-      const offsetY = -(p.shiftY * 8); // 前方シフト
+      const rFwd   = p.fwd * 12;
+      const rBwd   = p.bwd * 12;
+      const rLeft  = p.left * 12;
+      const rRight = p.right * 12;
 
-      ctx.beginPath();
-      ctx.ellipse(0, offsetY, rx, ry, 0, 0, Math.PI * 2);
+      createSmoothPath(ctx, rFwd, rBwd, rLeft, rRight);
 
-      ctx.fillStyle = p.color + '55';
+      ctx.fillStyle = p.color + '44'; // 各自の持ち色を透過描画
       ctx.fill();
-      ctx.strokeStyle = p.color + 'cc';
+      ctx.strokeStyle = p.color + 'aa';
       ctx.lineWidth = 2;
       ctx.stroke();
 
@@ -621,11 +660,47 @@
     });
   }
 
-  function drawPlayers() {
-    courtPlayers.forEach(p => {
-      const isSelected = (p === selectedPlayer);
+  function isPointInPlayerRange(px, py, p) {
+    const rad = -((p.angle - 90) * Math.PI) / 180;
+    const dx = px - p.x;
+    const dy = py - p.y;
 
-      // 選択中ハイライト
+    const lx = dx * Math.cos(rad) - dy * Math.sin(rad);
+    const ly = dx * Math.sin(rad) + dy * Math.cos(rad);
+
+    const rx = (lx >= 0) ? p.right * 12 : p.left * 12;
+    const ry = (ly < 0)  ? p.fwd * 12   : p.bwd * 12;
+
+    return ((lx * lx) / (rx * rx) + (ly * ly) / (ry * ry)) <= 1.0;
+  }
+
+  // 重なった警告領域を赤色（塗りつぶし）で表示する処理
+  function drawOverlapAreaRed() {
+    const courtPlayers = getCourtPlayers();
+    const step = 6; // グリッド描画の解像度（数値が小さいほど滑らか）
+
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.45)'; // 警告の鮮やかな赤（半透明）
+
+    for (let gy = court.netY; gy <= court.y + court.h; gy += step) {
+      for (let gx = court.x; gx <= court.x + court.w; gx += step) {
+        let count = 0;
+        courtPlayers.forEach(p => {
+          if (isPointInPlayerRange(gx, gy, p)) count++;
+        });
+
+        // 2人以上の守備範囲が重複している場合、そのピクセル（領域）を赤く塗る
+        if (count >= 2) {
+          ctx.fillRect(gx - step/2, gy - step/2, step + 1, step + 1);
+        }
+      }
+    }
+  }
+
+  function drawPlayers() {
+    const courtPlayers = getCourtPlayers();
+    courtPlayers.forEach(p => {
+      const isSelected = (p.id === selectedPosId);
+
       if (isSelected) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, 30, 0, Math.PI * 2);
@@ -633,7 +708,6 @@
         ctx.fill();
       }
 
-      // 選手本体（円）
       ctx.beginPath();
       ctx.arc(p.x, p.y, 22, 0, Math.PI * 2);
       ctx.fillStyle = p.color;
@@ -642,12 +716,10 @@
       ctx.lineWidth = isSelected ? 3 : 2;
       ctx.stroke();
 
-      // 身体の向き（目印 & 視線）
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(((p.angle - 90) * Math.PI) / 180);
 
-      // 前方を指す視線ライン
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.lineTo(0, -32);
@@ -655,7 +727,6 @@
       ctx.lineWidth = 3;
       ctx.stroke();
 
-      // 回転操作用ハンドル（選択中のみ）
       if (isSelected) {
         ctx.beginPath();
         ctx.arc(0, -42, 8, 0, Math.PI * 2);
@@ -668,7 +739,6 @@
 
       ctx.restore();
 
-      // 選手名ラベル
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 12px sans-serif';
       ctx.textAlign = 'center';
@@ -681,10 +751,11 @@
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawCourt();
     drawDefenseAreas();
+    drawOverlapAreaRed(); // 警告エリア（重なり部分）の赤色塗りを描画
     drawPlayers();
   }
 
-  // --- タップ・ドラッグ・回転操作 ---
+  // タップ・操作イベント
   function getCanvasPos(e) {
     const rect = canvas.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -695,7 +766,6 @@
     };
   }
 
-  // 90°＝前方を基準とした角度計算
   function getAngleFromPoint(px, py, mx, my) {
     const rad = Math.atan2(my - py, mx - px);
     let deg = Math.round((rad * 180) / Math.PI) + 90;
@@ -706,12 +776,13 @@
 
   function handleStart(e) {
     const pos = getCanvasPos(e);
+    const courtPlayers = getCourtPlayers();
+    const selectedP = getSelectedPlayer();
 
-    // 1. 回転ハンドルのタップ判定
-    if (selectedPlayer) {
-      const rad = ((selectedPlayer.angle - 90) * Math.PI) / 180;
-      const handleX = selectedPlayer.x + 42 * Math.cos(rad);
-      const handleY = selectedPlayer.y + 42 * Math.sin(rad);
+    if (selectedP) {
+      const rad = ((selectedP.angle - 90) * Math.PI) / 180;
+      const handleX = selectedP.x + 42 * Math.cos(rad);
+      const handleY = selectedP.y + 42 * Math.sin(rad);
 
       if (Math.hypot(handleX - pos.x, handleY - pos.y) < 22) {
         activeInteraction = 'rotate';
@@ -720,12 +791,11 @@
       }
     }
 
-    // 2. 選手本体のタップ・移動判定
     for (let i = courtPlayers.length - 1; i >= 0; i--) {
       const p = courtPlayers[i];
       if (Math.hypot(p.x - pos.x, p.y - pos.y) < 32) {
         activeInteraction = 'move';
-        selectedPlayer = p;
+        selectedPosId = p.id;
         touchOffsetX = pos.x - p.x;
         touchOffsetY = pos.y - p.y;
         updateUI();
@@ -737,15 +807,17 @@
   }
 
   function handleMove(e) {
-    if (!activeInteraction || !selectedPlayer) return;
+    if (!activeInteraction) return;
     e.preventDefault();
     const pos = getCanvasPos(e);
+    const currentPos = rotationPositions[currentRotation].find(p => p.id === selectedPosId);
+    if (!currentPos) return;
 
     if (activeInteraction === 'move') {
-      selectedPlayer.x = Math.max(court.x, Math.min(court.x + court.w, pos.x - touchOffsetX));
-      selectedPlayer.y = Math.max(court.netY + 15, Math.min(court.y + court.h, pos.y - touchOffsetY));
+      currentPos.x = Math.max(court.x, Math.min(court.x + court.w, pos.x - touchOffsetX));
+      currentPos.y = Math.max(court.netY + 15, Math.min(court.y + court.h, pos.y - touchOffsetY));
     } else if (activeInteraction === 'rotate') {
-      selectedPlayer.angle = getAngleFromPoint(selectedPlayer.x, selectedPlayer.y, pos.x, pos.y);
+      currentPos.angle = getAngleFromPoint(currentPos.x, currentPos.y, pos.x, pos.y);
       updateUI();
     }
     render();
