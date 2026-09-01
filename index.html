@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>バレーボール守備範囲シミュレーター</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 600px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* パターン保存・管理 */
+    .control-panel {
+      background-color: #1e293b;
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .panel-title {
+      font-weight: bold;
+      font-size: 14px;
+      color: #3b82f6;
+    }
+
+    .pattern-bar {
+      display: flex;
+      gap: 8px;
+    }
+
+    select, input[type="text"] {
+      background: #0f172a;
+      color: #ffffff;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 8px;
+      font-size: 13px;
+    }
+
+    button {
+      font-size: 13px;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      padding: 8px 12px;
+      transition: background-color 0.2s;
+    }
+
+    .btn-primary { background-color: #2563eb; color: #fff; }
+    .btn-primary:hover { background-color: #1d4ed8; }
+    .btn-danger { background-color: #ef4444; color: #fff; }
+    .btn-danger:hover { background-color: #dc2626; }
+
+    /* ローテーション切り替えボタン */
+    .rot-container {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 6px;
+    }
+
+    .rot-btn {
+      padding: 8px 0;
+      background-color: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 13px;
+    }
+
+    .rot-btn.active {
+      background-color: #2563eb;
+      color: #ffffff;
+      border-color: #3b82f6;
+    }
+
+    /* メインキャンバス領域 */
+    .canvas-wrapper {
+      width: 100%;
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 8px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+      border: 1px solid #334155;
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 8px;
+      touch-action: none;
+    }
+
+    /* ベンチ控え選手エリア */
+    .bench-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .bench-list {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .bench-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background-color: #0f172a;
+      border: 1px solid #334155;
+      padding: 6px 10px;
+      border-radius: 20px;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+
+    .bench-item .badge {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    /* パラメータコントロールパネル */
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .player-badge {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 14px;
+      color: #ffffff;
+    }
+
+    .name-input-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .slider-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px 16px;
+    }
+
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #cbd5e1;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #3b82f6;
+    }
+
+    /* モーダル */
+    dialog {
+      margin: auto;
+      background: #1e293b;
+      color: #fff;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    dialog::backdrop {
+      background: rgba(0, 0, 0, 0.7);
+    }
+
+    .modal-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 16px 0;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+
+    .modal-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+
+  <!-- パターン保存・管理 -->
+  <div class="control-panel">
+    <div class="panel-title">チームパターン保存・読み込み</div>
+    <div class="pattern-bar">
+      <select id="patternSelect" style="flex: 1;"></select>
+      <button id="savePatternBtn" class="btn-primary">保存</button>
+      <button id="deletePatternBtn" class="btn-danger">削除</button>
+    </div>
+  </div>
+
+  <!-- ローテーション選択 -->
+  <div class="rot-container">
+    <button type="button" class="rot-btn active">S1</button>
+    <button type="button" class="rot-btn">S2</button>
+    <button type="button" class="rot-btn">S3</button>
+    <button type="button" class="rot-btn">S4</button>
+    <button type="button" class="rot-btn">S5</button>
+    <button type="button" class="rot-btn">S6</button>
+  </div>
+
+  <!-- メインキャンバス -->
+  <div class="canvas-wrapper">
+    <canvas id="courtCanvas" width="500" height="700"></canvas>
+  </div>
+
+  <!-- ベンチ控え選手 -->
+  <div class="control-panel bench-container">
+    <div class="panel-header">
+      <span class="panel-title">ベンチ控え選手</span>
+      <button id="addBenchBtn" class="btn-primary" style="padding: 4px 8px; font-size: 11px;">+ 控え追加</button>
+    </div>
+    <div class="bench-list" id="benchList"></div>
+  </div>
+
+  <!-- 選択中の選手パラメータ設定 -->
+  <div class="control-panel">
+    <div class="panel-header">
+      <span class="player-badge" id="selectedBadge">L (リベロ)</span>
+      <button id="openSwapModalBtn" class="btn-primary" style="background-color: #f59e0b;">交代（チェンジ）</button>
+    </div>
+
+    <div class="name-input-group">
+      <span style="font-size: 12px; color: #94a3b8; white-space: nowrap;">登録選手名:</span>
+      <input type="text" id="playerNameInput" style="flex: 1;" placeholder="選手名を入力">
+    </div>
+
+    <div class="slider-grid">
+      <div class="slider-group">
+        <div class="slider-label"><span>前後カバー（縦幅）</span><span class="slider-val">Lv. 8</span></div>
+        <input type="range" min="1" max="10" value="8">
+      </div>
+      <div class="slider-group">
+        <div class="slider-label"><span>左右カバー（横幅）</span><span class="slider-val">Lv. 8</span></div>
+        <input type="range" min="1" max="10" value="8">
+      </div>
+      <div class="slider-group">
+        <div class="slider-label"><span>前方シフト（オフセット）</span><span class="slider-val">Lv. 2</span></div>
+        <input type="range" min="-5" max="5" value="2">
+      </div>
+      <div class="slider-group">
+        <div class="slider-label"><span>身体の向き（タッチ操作可）</span><span class="slider-val">90°</span></div>
+        <input type="range" min="-180" max="180" value="90">
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 交代モーダル -->
+<dialog id="swapModal">
+  <div style="font-weight: bold; font-size: 16px; margin-bottom: 8px;">メンバー交代</div>
+  <div style="font-size: 12px; color: #94a3b8;">交代するベンチ選手を選択してください:</div>
+  <div class="modal-list" id="modalBenchList"></div>
+  <div style="display: flex; justify-content: flex-end;">
+    <button id="closeModalBtn" style="background: #334155; color: #fff;">キャンセル</button>
+  </div>
+</dialog>
+
+<script>
+  const canvas = document.getElementById('courtCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const selectedBadge = document.getElementById('selectedBadge');
+  const playerNameInput = document.getElementById('playerNameInput');
+  const sliders = document.querySelectorAll('.slider-group input');
+  const valTexts = document.querySelectorAll('.slider-val');
+  const patternSelect = document.getElementById('patternSelect');
+  const benchList = document.getElementById('benchList');
+  const swapModal = document.getElementById('swapModal');
+  const modalBenchList = document.getElementById('modalBenchList');
+
+  const court = { x: 40, y: 40, w: 420, h: 620, netY: 350 };
+  let currentRotation = 'S1';
+
+  // 各ローテーション初期データ（角度デフォルト: 90°＝正面向き）
+  const defaultRotationData = {
+    S1: [
+      { id: 'S',   posName: 'S',   displayName: '山田', color: '#2563eb', x: 390, y: 430, radiusY: 8, radiusX: 6, shiftY: 2, angle: 90 },
+      { id: 'OH1', posName: 'OH1', displayName: '佐藤', color: '#059669', x: 110, y: 390, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'MB1', posName: 'MB1', displayName: '高橋', color: '#d97706', x: 250, y: 390, radiusY: 6, radiusX: 5, shiftY: 1, angle: 90 },
+      { id: 'OP',  posName: 'OP',  displayName: '田中', color: '#db2777', x: 110, y: 560, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'OH2', posName: 'OH2', displayName: '伊藤', color: '#059669', x: 390, y: 560, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'L',   posName: 'L',   displayName: '渡辺', color: '#dc2626', x: 250, y: 600, radiusY: 9, radiusX: 8, shiftY: 3, angle: 90 }
+    ],
+    S2: [
+      { id: 'S',   posName: 'S',   displayName: '山田', color: '#2563eb', x: 250, y: 390, radiusY: 8, radiusX: 6, shiftY: 2, angle: 90 },
+      { id: 'OH1', posName: 'OH1', displayName: '佐藤', color: '#059669', x: 390, y: 560, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'MB1', posName: 'MB1', displayName: '高橋', color: '#d97706', x: 110, y: 560, radiusY: 6, radiusX: 5, shiftY: 1, angle: 90 },
+      { id: 'OP',  posName: 'OP',  displayName: '田中', color: '#db2777', x: 250, y: 600, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'OH2', posName: 'OH2', displayName: '伊藤', color: '#059669', x: 110, y: 390, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'L',   posName: 'L',   displayName: '渡辺', color: '#dc2626', x: 390, y: 430, radiusY: 9, radiusX: 8, shiftY: 3, angle: 90 }
+    ],
+    S3: [
+      { id: 'S',   posName: 'S',   displayName: '山田', color: '#2563eb', x: 110, y: 390, radiusY: 8, radiusX: 6, shiftY: 2, angle: 90 },
+      { id: 'OH1', posName: 'OH1', displayName: '佐藤', color: '#059669', x: 250, y: 600, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'MB1', posName: 'MB1', displayName: '高橋', color: '#d97706', x: 110, y: 560, radiusY: 6, radiusX: 5, shiftY: 1, angle: 90 },
+      { id: 'OP',  posName: 'OP',  displayName: '田中', color: '#db2777', x: 390, y: 560, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'OH2', posName: 'OH2', displayName: '伊藤', color: '#059669', x: 250, y: 390, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'L',   posName: 'L',   displayName: '渡辺', color: '#dc2626', x: 390, y: 430, radiusY: 9, radiusX: 8, shiftY: 3, angle: 90 }
+    ],
+    S4: [
+      { id: 'S',   posName: 'S',   displayName: '山田', color: '#2563eb', x: 110, y: 560, radiusY: 8, radiusX: 6, shiftY: 2, angle: 90 },
+      { id: 'OH1', posName: 'OH1', displayName: '佐藤', color: '#059669', x: 250, y: 390, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'MB1', posName: 'MB1', displayName: '高橋', color: '#d97706', x: 390, y: 430, radiusY: 6, radiusX: 5, shiftY: 1, angle: 90 },
+      { id: 'OP',  posName: 'OP',  displayName: '田中', color: '#db2777', x: 390, y: 560, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'OH2', posName: 'OH2', displayName: '伊藤', color: '#059669', x: 250, y: 600, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'L',   posName: 'L',   displayName: '渡辺', color: '#dc2626', x: 110, y: 390, radiusY: 9, radiusX: 8, shiftY: 3, angle: 90 }
+    ],
+    S5: [
+      { id: 'S',   posName: 'S',   displayName: '山田', color: '#2563eb', x: 250, y: 600, radiusY: 8, radiusX: 6, shiftY: 2, angle: 90 },
+      { id: 'OH1', posName: 'OH1', displayName: '佐藤', color: '#059669', x: 390, y: 430, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'MB1', posName: 'MB1', displayName: '高橋', color: '#d97706', x: 250, y: 390, radiusY: 6, radiusX: 5, shiftY: 1, angle: 90 },
+      { id: 'OP',  posName: 'OP',  displayName: '田中', color: '#db2777', x: 250, y: 560, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'OH2', posName: 'OH2', displayName: '伊藤', color: '#059669', x: 110, y: 560, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'L',   posName: 'L',   displayName: '渡辺', color: '#dc2626', x: 110, y: 390, radiusY: 9, radiusX: 8, shiftY: 3, angle: 90 }
+    ],
+    S6: [
+      { id: 'S',   posName: 'S',   displayName: '山田', color: '#2563eb', x: 390, y: 560, radiusY: 8, radiusX: 6, shiftY: 2, angle: 90 },
+      { id: 'OH1', posName: 'OH1', displayName: '佐藤', color: '#059669', x: 250, y: 390, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'MB1', posName: 'MB1', displayName: '高橋', color: '#d97706', x: 110, y: 390, radiusY: 6, radiusX: 5, shiftY: 1, angle: 90 },
+      { id: 'OP',  posName: 'OP',  displayName: '田中', color: '#db2777', x: 250, y: 600, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'OH2', posName: 'OH2', displayName: '伊藤', color: '#059669', x: 390, y: 430, radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+      { id: 'L',   posName: 'L',   displayName: '渡辺', color: '#dc2626', x: 110, y: 560, radiusY: 9, radiusX: 8, shiftY: 3, angle: 90 }
+    ]
+  };
+
+  // リアルタイムに状態を記憶するオブジェクト
+  let rotationState = JSON.parse(JSON.stringify(defaultRotationData));
+
+  let benchPlayers = [
+    { id: 'B1', posName: '控えS',  displayName: '鈴木', color: '#2563eb', radiusY: 7, radiusX: 6, shiftY: 2, angle: 90 },
+    { id: 'B2', posName: '控えOH', displayName: '中村', color: '#059669', radiusY: 8, radiusX: 7, shiftY: 2, angle: 90 },
+    { id: 'B3', posName: '控えMB', displayName: '小林', color: '#d97706', radiusY: 6, radiusX: 5, shiftY: 1, angle: 90 }
+  ];
+
+  let courtPlayers = rotationState[currentRotation];
+  let selectedPlayer = courtPlayers[5];
+  let activeInteraction = null;
+  let touchOffsetX = 0, touchOffsetY = 0;
+
+  function updateUI() {
+    if (!selectedPlayer) return;
+    selectedBadge.textContent = `${selectedPlayer.posName} (${selectedPlayer.displayName})`;
+    selectedBadge.style.backgroundColor = selectedPlayer.color;
+    playerNameInput.value = selectedPlayer.displayName;
+
+    sliders[0].value = selectedPlayer.radiusY;  valTexts[0].textContent = `Lv. ${selectedPlayer.radiusY}`;
+    sliders[1].value = selectedPlayer.radiusX;  valTexts[1].textContent = `Lv. ${selectedPlayer.radiusX}`;
+    sliders[2].value = selectedPlayer.shiftY;   valTexts[2].textContent = `Lv. ${selectedPlayer.shiftY}`;
+    sliders[3].value = selectedPlayer.angle;    valTexts[3].textContent = `${selectedPlayer.angle}°`;
+
+    renderBenchList();
+  }
+
+  playerNameInput.addEventListener('input', (e) => {
+    selectedPlayer.displayName = e.target.value;
+    updateUI();
+    render();
+  });
+
+  const keys = ['radiusY', 'radiusX', 'shiftY', 'angle'];
+  sliders.forEach((slider, idx) => {
+    slider.addEventListener('input', (e) => {
+      selectedPlayer[keys[idx]] = parseInt(e.target.value);
+      updateUI();
+      render();
+    });
+  });
+
+  function renderBenchList() {
+    benchList.innerHTML = '';
+    benchPlayers.forEach((bp) => {
+      const item = document.createElement('div');
+      item.className = 'bench-item';
+      item.innerHTML = `
+        <span class="badge" style="background-color: ${bp.color};"></span>
+        <span><b>${bp.displayName}</b> (${bp.posName})</span>
+      `;
+      benchList.appendChild(item);
+    });
+  }
+
+  // --- メンバー交代 ---
+  document.getElementById('openSwapModalBtn').addEventListener('click', () => {
+    modalBenchList.innerHTML = '';
+    if (benchPlayers.length === 0) {
+      modalBenchList.innerHTML = '<div style="font-size:12px; color:#94a3b8;">控え選手がいません。</div>';
+    } else {
+      benchPlayers.forEach((bp, idx) => {
+        const div = document.createElement('div');
+        div.className = 'modal-item';
+        div.innerHTML = `
+          <span><b>${bp.displayName}</b> (${bp.posName})</span>
+          <button class="btn-primary" style="padding:4px 8px; font-size:11px;" onclick="executeSwap(${idx})">交代</button>
+        `;
+        modalBenchList.appendChild(div);
+      });
+    }
+    swapModal.showModal();
+  });
+
+  document.getElementById('closeModalBtn').addEventListener('click', () => swapModal.close());
+
+  window.executeSwap = function(benchIdx) {
+    const cIdx = courtPlayers.findIndex(p => p.id === selectedPlayer.id);
+    if (cIdx === -1) return;
+
+    const courtP = courtPlayers[cIdx];
+    const benchP = benchPlayers[benchIdx];
+
+    const newCourtP = { ...benchP, id: courtP.id, posName: courtP.posName, x: courtP.x, y: courtP.y };
+    const newBenchP = { ...courtP, id: `B_${Date.now()}` };
+
+    courtPlayers[cIdx] = newCourtP;
+    benchPlayers[benchIdx] = newBenchP;
+
+    selectedPlayer = newCourtP;
+    swapModal.close();
+    updateUI();
+    render();
+  };
+
+  document.getElementById('addBenchBtn').addEventListener('click', () => {
+    const name = prompt('控え選手の名前を入力してください:', '加藤');
+    if (!name) return;
+    benchPlayers.push({
+      id: `B_${Date.now()}`,
+      posName: '控え',
+      displayName: name,
+      color: '#8b5cf6',
+      radiusY: 8, radiusX: 7, shiftY: 2, angle: 90
+    });
+    updateUI();
+  });
+
+  // --- ローテーション切替（状態を維持しながら切替） ---
+  const rotButtons = document.querySelectorAll('.rot-btn');
+  rotButtons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      rotButtons.forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+
+      const nextRot = e.target.textContent;
+      currentRotation = nextRot;
+
+      // 切替後のチームデータを取得
+      courtPlayers = rotationState[currentRotation];
+
+      // 前の選択IDを引き継ぐかデフォルトに戻す
+      const samePlayer = courtPlayers.find(p => p.id === selectedPlayer?.id);
+      selectedPlayer = samePlayer || courtPlayers[0];
+
+      updateUI();
+      render();
+    });
+  });
+
+  // --- LocalStorage 保存・読み込み ---
+  function getSavedPatterns() {
+    return JSON.parse(localStorage.getItem('volleyball_team_patterns')) || {};
+  }
+
+  function updatePatternSelect() {
+    const patterns = getSavedPatterns();
+    patternSelect.innerHTML = '<option value="">-- パターン選択 --</option>';
+    Object.keys(patterns).forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      patternSelect.appendChild(opt);
+    });
+  }
+
+  document.getElementById('savePatternBtn').addEventListener('click', () => {
+    const name = prompt('保存するパターン名を入力してください:');
+    if (!name) return;
+    const patterns = getSavedPatterns();
+    patterns[name] = { rotationState, benchPlayers };
+    localStorage.setItem('volleyball_team_patterns', JSON.stringify(patterns));
+    updatePatternSelect();
+    patternSelect.value = name;
+    alert(`パターン「${name}」を保存しました。`);
+  });
+
+  document.getElementById('deletePatternBtn').addEventListener('click', () => {
+    const name = patternSelect.value;
+    if (!name) return alert('削除するパターンを選択してください。');
+    if (confirm(`「${name}」を削除してもよろしいですか？`)) {
+      const patterns = getSavedPatterns();
+      delete patterns[name];
+      localStorage.setItem('volleyball_team_patterns', JSON.stringify(patterns));
+      updatePatternSelect();
+    }
+  });
+
+  patternSelect.addEventListener('change', (e) => {
+    const name = e.target.value;
+    if (!name) return;
+    const patterns = getSavedPatterns();
+    if (patterns[name]) {
+      rotationState = patterns[name].rotationState;
+      benchPlayers = patterns[name].benchPlayers || [];
+      courtPlayers = rotationState[currentRotation];
+      selectedPlayer = courtPlayers[0];
+      updateUI();
+      render();
+    }
+  });
+
+  // --- キャンバス描画機能 ---
+  function drawCourt() {
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 白背景コート
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(court.x, court.y, court.w, court.h);
+
+    // 相手側コート（うっすらグレー）
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
+    ctx.fillRect(court.x, court.y, court.w, court.netY - court.y);
+
+    // アタックライン（黒）
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(court.x, court.netY - 100); ctx.lineTo(court.x + court.w, court.netY - 100); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(court.x, court.netY + 100); ctx.lineTo(court.x + court.w, court.netY + 100); ctx.stroke();
+
+    // コート外枠（黒）
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(court.x, court.y, court.w, court.h);
+
+    // ネット（太い黒ライン）
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(court.x - 10, court.netY);
+    ctx.lineTo(court.x + court.w + 10, court.netY);
+    ctx.stroke();
+  }
+
+  // 守備範囲（90°が正面＝上向き）
+  function drawDefenseAreas() {
+    courtPlayers.forEach(p => {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      // 90°＝上（ネット方向）になるよう調整
+      ctx.rotate(((p.angle - 90) * Math.PI) / 180);
+
+      const ry = p.radiusY * 12; // 縦（前後）
+      const rx = p.radiusX * 12; // 横（左右）
+      const offsetY = -(p.shiftY * 8); // 前方シフト
+
+      ctx.beginPath();
+      ctx.ellipse(0, offsetY, rx, ry, 0, 0, Math.PI * 2);
+
+      ctx.fillStyle = p.color + '55';
+      ctx.fill();
+      ctx.strokeStyle = p.color + 'cc';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.restore();
+    });
+  }
+
+  function drawPlayers() {
+    courtPlayers.forEach(p => {
+      const isSelected = (p === selectedPlayer);
+
+      // 選択中ハイライト
+      if (isSelected) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 30, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(37, 99, 235, 0.2)';
+        ctx.fill();
+      }
+
+      // 選手本体（円）
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 22, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = isSelected ? 3 : 2;
+      ctx.stroke();
+
+      // 身体の向き（目印 & 視線）
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(((p.angle - 90) * Math.PI) / 180);
+
+      // 前方を指す視線ライン
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, -32);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // 回転操作用ハンドル（選択中のみ）
+      if (isSelected) {
+        ctx.beginPath();
+        ctx.arc(0, -42, 8, 0, Math.PI * 2);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      ctx.restore();
+
+      // 選手名ラベル
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(p.displayName || p.posName, p.x, p.y);
+    });
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawCourt();
+    drawDefenseAreas();
+    drawPlayers();
+  }
+
+  // --- タップ・ドラッグ・回転操作 ---
+  function getCanvasPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+      x: (clientX - rect.left) * (canvas.width / rect.width),
+      y: (clientY - rect.top) * (canvas.height / rect.height)
+    };
+  }
+
+  // 90°＝前方を基準とした角度計算
+  function getAngleFromPoint(px, py, mx, my) {
+    const rad = Math.atan2(my - py, mx - px);
+    let deg = Math.round((rad * 180) / Math.PI) + 90;
+    if (deg > 180) deg -= 360;
+    if (deg < -180) deg += 360;
+    return deg;
+  }
+
+  function handleStart(e) {
+    const pos = getCanvasPos(e);
+
+    // 1. 回転ハンドルのタップ判定
+    if (selectedPlayer) {
+      const rad = ((selectedPlayer.angle - 90) * Math.PI) / 180;
+      const handleX = selectedPlayer.x + 42 * Math.cos(rad);
+      const handleY = selectedPlayer.y + 42 * Math.sin(rad);
+
+      if (Math.hypot(handleX - pos.x, handleY - pos.y) < 22) {
+        activeInteraction = 'rotate';
+        e.preventDefault();
+        return;
+      }
+    }
+
+    // 2. 選手本体のタップ・移動判定
+    for (let i = courtPlayers.length - 1; i >= 0; i--) {
+      const p = courtPlayers[i];
+      if (Math.hypot(p.x - pos.x, p.y - pos.y) < 32) {
+        activeInteraction = 'move';
+        selectedPlayer = p;
+        touchOffsetX = pos.x - p.x;
+        touchOffsetY = pos.y - p.y;
+        updateUI();
+        render();
+        e.preventDefault();
+        return;
+      }
+    }
+  }
+
+  function handleMove(e) {
+    if (!activeInteraction || !selectedPlayer) return;
+    e.preventDefault();
+    const pos = getCanvasPos(e);
+
+    if (activeInteraction === 'move') {
+      selectedPlayer.x = Math.max(court.x, Math.min(court.x + court.w, pos.x - touchOffsetX));
+      selectedPlayer.y = Math.max(court.netY + 15, Math.min(court.y + court.h, pos.y - touchOffsetY));
+    } else if (activeInteraction === 'rotate') {
+      selectedPlayer.angle = getAngleFromPoint(selectedPlayer.x, selectedPlayer.y, pos.x, pos.y);
+      updateUI();
+    }
+    render();
+  }
+
+  function handleEnd() {
+    activeInteraction = null;
+  }
+
+  canvas.addEventListener('mousedown', handleStart);
+  canvas.addEventListener('mousemove', handleMove);
+  canvas.addEventListener('mouseup', handleEnd);
+  canvas.addEventListener('touchstart', handleStart, { passive: false });
+  canvas.addEventListener('touchmove', handleMove, { passive: false });
+  canvas.addEventListener('touchend', handleEnd);
+
+  // 初期化
+  updatePatternSelect();
+  updateUI();
+  render();
+</script>
+</body>
+</html>
