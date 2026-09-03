@@ -1,843 +1,1371 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>バレーボール守備範囲シミュレーター</title>
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>バレーボール守備シミュレーター</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: #0f172a;
+    color: #f8fafc;
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .app {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 12px;
+  }
+  h1 {
+    font-size: 18px;
+    text-align: center;
+    margin: 8px 0 14px;
+    color: #f8fafc;
+  }
+  .card {
+    background: #1e293b;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 12px;
+    border: 1px solid #334155;
+  }
+  .card h2 {
+    font-size: 13px;
+    margin: 0 0 10px;
+    color: #93c5fd;
+    letter-spacing: 0.02em;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; }
+  button, select, input[type="text"] {
+    font-family: inherit;
+    font-size: 13px;
+    background: #334155;
+    color: #f8fafc;
+    border: 1px solid #475569;
+    border-radius: 8px;
+    padding: 7px 10px;
+    cursor: pointer;
+  }
+  button:active { transform: scale(0.97); }
+  button.primary { background: #2563eb; border-color: #2563eb; }
+  button.danger { background: #7f1d1d; border-color: #991b1b; }
+  button.rotation-btn { min-width: 44px; }
+  button.rotation-btn.active { background: #2563eb; border-color: #60a5fa; font-weight: bold; }
+  select { cursor: pointer; }
+  input[type="text"] { flex: 1; min-width: 100px; }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: #0f172a;
-      color: #f8fafc;
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
+  #canvasWrap {
+    position: relative;
+    width: 100%;
+    max-width: 380px;
+    margin: 0 auto;
+    touch-action: none;
+    user-select: none;
+  }
+  #courtCanvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 2;
+    background: #0b1220;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    touch-action: none;
+    cursor: default;
+  }
+  .coverage-badge {
+    text-align: center;
+    font-size: 15px;
+    margin-top: 8px;
+    color: #4ade80;
+    font-weight: bold;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    justify-content: center;
+    margin-top: 10px;
+    font-size: 11px;
+    color: #cbd5e1;
+  }
+  .legend span.dot {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #cbd5e1;
+    margin-top: 10px;
+    justify-content: center;
+  }
+  .toggle-row input { accent-color: #ef4444; }
 
-    .app-container {
-      width: 100%;
-      max-width: 600px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
+  .slider-group { margin-bottom: 10px; }
+  .slider-group label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #cbd5e1;
+    margin-bottom: 3px;
+  }
+  .slider-group input[type="range"] {
+    width: 100%;
+    accent-color: #3b82f6;
+  }
+  .param-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .param-header select { flex: 1; margin-right: 8px; }
+  .role-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: bold;
+    color: #0f172a;
+  }
 
-    /* パターン保存・管理 */
-    .control-panel {
-      background-color: #1e293b;
-      padding: 14px;
-      border-radius: 12px;
-      border: 1px solid #334155;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
+  .roster-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .roster-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 13px;
+    gap: 8px;
+  }
+  .roster-item button {
+    padding: 3px 8px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .roster-item button.del { background: #7f1d1d; border-color: #991b1b; }
+  .assign-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .assign-grid .assign-item { display: flex; flex-direction: column; gap: 3px; }
+  .assign-item label { font-size: 11px; color: #94a3b8; }
 
-    .panel-title {
-      font-weight: bold;
-      font-size: 14px;
-      color: #3b82f6;
-    }
+  .toast {
+    position: fixed;
+    bottom: 20px; left: 50%;
+    transform: translateX(-50%);
+    background: #16a34a;
+    color: white;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    z-index: 999;
+    max-width: 90%;
+    text-align: center;
+  }
+  .toast.show { opacity: 1; }
 
-    .pattern-bar {
-      display: flex;
-      gap: 8px;
-    }
-
-    select, input[type="text"] {
-      background: #0f172a;
-      color: #ffffff;
-      border: 1px solid #334155;
-      border-radius: 6px;
-      padding: 8px;
-      font-size: 13px;
-    }
-
-    button {
-      font-size: 13px;
-      font-weight: bold;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      padding: 8px 12px;
-      transition: background-color 0.2s;
-    }
-
-    .btn-primary { background-color: #2563eb; color: #fff; }
-    .btn-primary:hover { background-color: #1d4ed8; }
-    .btn-danger { background-color: #ef4444; color: #fff; }
-    .btn-danger:hover { background-color: #dc2626; }
-
-    /* ローテーション切り替えボタン */
-    .rot-container {
-      display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      gap: 6px;
-    }
-
-    .rot-btn {
-      padding: 8px 0;
-      background-color: #1e293b;
-      color: #94a3b8;
-      border: 1px solid #334155;
-      border-radius: 8px;
-      font-weight: bold;
-      font-size: 13px;
-    }
-
-    .rot-btn.active {
-      background-color: #2563eb;
-      color: #ffffff;
-      border-color: #3b82f6;
-    }
-
-    /* メインキャンバス領域 */
-    .canvas-wrapper {
-      width: 100%;
-      background-color: #1e293b;
-      border-radius: 12px;
-      padding: 8px;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
-      border: 1px solid #334155;
-    }
-
-    canvas {
-      width: 100%;
-      height: auto;
-      display: block;
-      border-radius: 8px;
-      touch-action: none;
-    }
-
-    /* ベンチ控え選手エリア */
-    .bench-container {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .bench-list {
-      display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      padding-bottom: 4px;
-    }
-
-    .bench-item {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      background-color: #0f172a;
-      border: 1px solid #334155;
-      padding: 6px 10px;
-      border-radius: 20px;
-      white-space: nowrap;
-      font-size: 12px;
-    }
-
-    .bench-item .badge {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-    }
-
-    /* パラメータコントロールパネル */
-    .panel-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .player-badge {
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-weight: bold;
-      font-size: 14px;
-      color: #ffffff;
-    }
-
-    .name-input-group {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .slider-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px 14px;
-    }
-
-    .slider-group {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .slider-label {
-      display: flex;
-      justify-content: space-between;
-      font-size: 11px;
-      color: #cbd5e1;
-    }
-
-    input[type="range"] {
-      width: 100%;
-      accent-color: #3b82f6;
-    }
-
-    /* モーダル */
-    dialog {
-      margin: auto;
-      background: #1e293b;
-      color: #fff;
-      border: 1px solid #334155;
-      border-radius: 12px;
-      padding: 20px;
-      width: 90%;
-      max-width: 400px;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
-    }
-
-    dialog::backdrop {
-      background: rgba(0, 0, 0, 0.7);
-    }
-
-    .modal-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin: 16px 0;
-      max-height: 250px;
-      overflow-y: auto;
-    }
-
-    .modal-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px;
-      background: #0f172a;
-      border: 1px solid #334155;
-      border-radius: 8px;
-    }
-  </style>
+  .hint {
+    font-size: 11px;
+    color: #64748b;
+    text-align: center;
+    margin-top: 6px;
+  }
+  .pattern-bar { display: flex; gap: 6px; }
+  .pattern-bar select { flex: 1; }
+</style>
 </head>
 <body>
+<div class="app">
+  <h1>🏐 バレーボール学習＆守備シミュレーター</h1>
 
-<div class="app-container">
-
-  <!-- パターン保存・管理 -->
-  <div class="control-panel">
-    <div class="panel-title">チームパターン保存・読み込み</div>
+  <div class="card">
+    <h2>チームパターン保存・読み込み</h2>
     <div class="pattern-bar">
-      <select id="patternSelect" style="flex: 1;"></select>
-      <button id="savePatternBtn" class="btn-primary">保存</button>
-      <button id="deletePatternBtn" class="btn-danger">削除</button>
+      <select id="patternSelect"></select>
+      <button id="savePatternBtn" class="primary">保存</button>
+      <button id="deletePatternBtn" class="danger">削除</button>
+    </div>
+    <div class="hint">ロースター・配置・パラメータをまとめて端末に保存できます</div>
+  </div>
+
+  <div class="card">
+    <h2>ローテーション</h2>
+    <div class="row" id="rotationButtons"></div>
+  </div>
+
+  <div class="card">
+    <div id="canvasWrap">
+      <canvas id="courtCanvas"></canvas>
+    </div>
+    <div class="coverage-badge">守備カバー率: <span id="coveragePercent">--%</span></div>
+    <div class="legend" id="legend"></div>
+    <label class="toggle-row">
+      <input type="checkbox" id="overlapToggle">
+      守備範囲の重複を赤で警告表示
+    </label>
+    <div class="hint">選手の丸をドラッグで移動／向きの先端の白いハンドルをドラッグで身体の向きを変更</div>
+  </div>
+
+  <div class="card">
+    <h2>相手の攻撃コース</h2>
+    <select id="attackSelect">
+      <option value="none">表示しない</option>
+      <option value="left">レフトから開始</option>
+      <option value="center">センターから開始</option>
+      <option value="right">ライトから開始</option>
+    </select>
+    <div class="hint">赤い「ATK」マーカーをドラッグすると、左右だけでなく前後（バックアタックの深さ）も自由に調整できます。ブロックの影の向きも位置に応じて傾きます</div>
+  </div>
+
+  <div class="card">
+    <h2>選手パラメータ設定</h2>
+    <div class="param-header">
+      <select id="roleSelect"></select>
+      <span class="role-tag" id="roleTag">S</span>
+    </div>
+    <div class="slider-group">
+      <label>前カバー範囲 <span id="valFront"></span>m</label>
+      <input type="range" id="sliderFront" min="1" max="10" step="0.5">
+    </div>
+    <div class="slider-group">
+      <label>後カバー範囲 <span id="valBack"></span>m</label>
+      <input type="range" id="sliderBack" min="1" max="10" step="0.5">
+    </div>
+    <div class="slider-group">
+      <label>左カバー範囲 <span id="valLeft"></span>m</label>
+      <input type="range" id="sliderLeft" min="1" max="10" step="0.5">
+    </div>
+    <div class="slider-group">
+      <label>右カバー範囲 <span id="valRight"></span>m</label>
+      <input type="range" id="sliderRight" min="1" max="10" step="0.5">
+    </div>
+    <div class="slider-group">
+      <label>身体の向き <span id="valAngle"></span>°</label>
+      <input type="range" id="sliderAngle" min="0" max="360" step="5">
     </div>
   </div>
 
-  <!-- ローテーション選択 -->
-  <div class="rot-container">
-    <button type="button" class="rot-btn active">S1</button>
-    <button type="button" class="rot-btn">S2</button>
-    <button type="button" class="rot-btn">S3</button>
-    <button type="button" class="rot-btn">S4</button>
-    <button type="button" class="rot-btn">S5</button>
-    <button type="button" class="rot-btn">S6</button>
+  <div class="card">
+    <h2>ベンチ選手（クイック交代）</h2>
+    <div class="roster-list" id="benchQuickList"></div>
+    <div class="hint">選択中のポジション「<span id="benchTargetRole">S</span>」と交代します</div>
   </div>
 
-  <!-- メインキャンバス -->
-  <div class="canvas-wrapper">
-    <canvas id="courtCanvas" width="500" height="700"></canvas>
-  </div>
-
-  <!-- ベンチ控え選手 -->
-  <div class="control-panel bench-container">
-    <div class="panel-header">
-      <span class="panel-title">ベンチ控え選手</span>
-      <button id="addBenchBtn" class="btn-primary" style="padding: 4px 8px; font-size: 11px;">+ 控え追加</button>
-    </div>
-    <div class="bench-list" id="benchList"></div>
-  </div>
-
-  <!-- 選択中の選手パラメータ設定 -->
-  <div class="control-panel">
-    <div class="panel-header">
-      <span class="player-badge" id="selectedBadge">L (リベロ)</span>
-      <button id="openSwapModalBtn" class="btn-primary" style="background-color: #f59e0b;">交代（チェンジ）</button>
-    </div>
-
-    <div class="name-input-group">
-      <span style="font-size: 12px; color: #94a3b8; white-space: nowrap;">登録選手名:</span>
-      <input type="text" id="playerNameInput" style="flex: 1;" placeholder="選手名を入力">
-    </div>
-
-    <div class="slider-grid">
-      <div class="slider-group">
-        <div class="slider-label"><span>前（前方カバー）</span><span class="slider-val">Lv. 8</span></div>
-        <input type="range" min="1" max="10" value="8">
-      </div>
-      <div class="slider-group">
-        <div class="slider-label"><span>後（後方カバー）</span><span class="slider-val">Lv. 5</span></div>
-        <input type="range" min="1" max="10" value="5">
-      </div>
-      <div class="slider-group">
-        <div class="slider-label"><span>左（左側カバー）</span><span class="slider-val">Lv. 7</span></div>
-        <input type="range" min="1" max="10" value="7">
-      </div>
-      <div class="slider-group">
-        <div class="slider-label"><span>右（右側カバー）</span><span class="slider-val">Lv. 7</span></div>
-        <input type="range" min="1" max="10" value="7">
-      </div>
-      <div class="slider-group" style="grid-column: span 2;">
-        <div class="slider-label"><span>身体の向き（タッチ操作可）</span><span class="slider-val">90°</span></div>
-        <input type="range" min="-180" max="180" value="90">
-      </div>
+  <div class="card">
+    <h2>チーム選手名簿</h2>
+    <div class="roster-list" id="rosterList"></div>
+    <div class="row">
+      <input type="text" id="newPlayerName" placeholder="選手名を入力">
+      <button id="addPlayerBtn" class="primary">追加</button>
     </div>
   </div>
 
+  <div class="card">
+    <h2>ポジション割り当て</h2>
+    <div class="assign-grid" id="assignGrid"></div>
+  </div>
+
+  <div class="card">
+    <h2>操作</h2>
+    <div class="row">
+      <button id="resetPosBtn">位置リセット</button>
+      <button id="playAnimBtn">動きを再生</button>
+      <button id="saveImageBtn">画像保存</button>
+      <button id="shareUrlBtn" class="primary">URL共有</button>
+    </div>
+  </div>
 </div>
 
-<!-- 交代モーダル -->
-<dialog id="swapModal">
-  <div style="font-weight: bold; font-size: 16px; margin-bottom: 8px;">メンバー交代</div>
-  <div style="font-size: 12px; color: #94a3b8;">交代するベンチ選手を選択してください:</div>
-  <div class="modal-list" id="modalBenchList"></div>
-  <div style="display: flex; justify-content: flex-end;">
-    <button id="closeModalBtn" style="background: #334155; color: #fff;">キャンセル</button>
-  </div>
-</dialog>
+<div class="toast" id="toast"></div>
 
 <script>
-  const canvas = document.getElementById('courtCanvas');
-  const ctx = canvas.getContext('2d');
+(function () {
+  "use strict";
 
-  const selectedBadge = document.getElementById('selectedBadge');
-  const playerNameInput = document.getElementById('playerNameInput');
-  const sliders = document.querySelectorAll('.slider-group input');
-  const valTexts = document.querySelectorAll('.slider-val');
-  const patternSelect = document.getElementById('patternSelect');
-  const benchList = document.getElementById('benchList');
-  const swapModal = document.getElementById('swapModal');
-  const modalBenchList = document.getElementById('modalBenchList');
+  /* ========================= 基本定数 ========================= */
+  const LOGICAL_W = 360;   // 論理描画幅(px) = コート幅9m
+  const LOGICAL_H = 720;   // 論理描画高さ(px) = コート全長18m
+  const PPM = LOGICAL_W / 9; // pixel per meter
+  const NET_Y = 9; // ネットのy座標(m)  0=相手側ベースライン 18=自陣ベースライン
+  const PATTERN_KEY = "volleyball_team_patterns_v2";
 
-  const court = { x: 40, y: 40, w: 420, h: 620, netY: 350 };
-  let currentRotation = 'S1';
-
-  // 1. 全ローテーション共通の選手マスターデータ
-  let playersMaster = {
-    'S':   { displayName: '山田', color: '#2563eb', fwd: 7, bwd: 4, left: 5, right: 6 },
-    'OH1': { displayName: '佐藤', color: '#059669', fwd: 8, bwd: 5, left: 7, right: 7 },
-    'MB1': { displayName: '高橋', color: '#d97706', fwd: 6, bwd: 3, left: 5, right: 5 },
-    'OP':  { displayName: '田中', color: '#db2777', fwd: 8, bwd: 5, left: 7, right: 7 },
-    'OH2': { displayName: '伊藤', color: '#059669', fwd: 8, bwd: 5, left: 7, right: 7 },
-    'L':   { displayName: '渡辺', color: '#dc2626', fwd: 9, bwd: 6, left: 8, right: 8 }
+  const ROLES = ["S", "OH1", "MB1", "OP", "OH2", "L"];
+  const ROLE_NAMES_JP = {
+    S: "セッター", OH1: "アウトサイド1", MB1: "ミドル",
+    OP: "オポジット", OH2: "アウトサイド2", L: "リベロ"
+  };
+  const ROLE_COLORS = {
+    S: "#3b82f6", OH1: "#22c55e", MB1: "#a855f7",
+    OP: "#f97316", OH2: "#16a34a", L: "#eab308"
   };
 
-  // 各ローテーションの立ち位置・角度
-  const defaultRotationPositions = {
-    S1: [
-      { id: 'S',   posName: 'S',   x: 390, y: 430, angle: 90 },
-      { id: 'OH1', posName: 'OH1', x: 110, y: 390, angle: 90 },
-      { id: 'MB1', posName: 'MB1', x: 250, y: 390, angle: 90 },
-      { id: 'OP',  posName: 'OP',  x: 110, y: 560, angle: 90 },
-      { id: 'OH2', posName: 'OH2', x: 390, y: 560, angle: 90 },
-      { id: 'L',   posName: 'L',   x: 250, y: 600, angle: 90 }
-    ],
-    S2: [
-      { id: 'S',   posName: 'S',   x: 250, y: 390, angle: 90 },
-      { id: 'OH1', posName: 'OH1', x: 390, y: 560, angle: 90 },
-      { id: 'MB1', posName: 'MB1', x: 110, y: 560, angle: 90 },
-      { id: 'OP',  posName: 'OP',  x: 250, y: 600, angle: 90 },
-      { id: 'OH2', posName: 'OH2', x: 110, y: 390, angle: 90 },
-      { id: 'L',   posName: 'L',   x: 390, y: 430, angle: 90 }
-    ],
-    S3: [
-      { id: 'S',   posName: 'S',   x: 110, y: 390, angle: 90 },
-      { id: 'OH1', posName: 'OH1', x: 250, y: 600, angle: 90 },
-      { id: 'MB1', posName: 'MB1', x: 110, y: 560, angle: 90 },
-      { id: 'OP',  posName: 'OP',  x: 390, y: 560, angle: 90 },
-      { id: 'OH2', posName: 'OH2', x: 250, y: 390, angle: 90 },
-      { id: 'L',   posName: 'L',   x: 390, y: 430, angle: 90 }
-    ],
-    S4: [
-      { id: 'S',   posName: 'S',   x: 110, y: 560, angle: 90 },
-      { id: 'OH1', posName: 'OH1', x: 250, y: 390, angle: 90 },
-      { id: 'MB1', posName: 'MB1', x: 390, y: 430, angle: 90 },
-      { id: 'OP',  posName: 'OP',  x: 390, y: 560, angle: 90 },
-      { id: 'OH2', posName: 'OH2', x: 250, y: 600, angle: 90 },
-      { id: 'L',   posName: 'L',   x: 110, y: 390, angle: 90 }
-    ],
-    S5: [
-      { id: 'S',   posName: 'S',   x: 250, y: 600, angle: 90 },
-      { id: 'OH1', posName: 'OH1', x: 390, y: 430, angle: 90 },
-      { id: 'MB1', posName: 'MB1', x: 250, y: 390, angle: 90 },
-      { id: 'OP',  posName: 'OP',  x: 250, y: 560, angle: 90 },
-      { id: 'OH2', posName: 'OH2', x: 110, y: 560, angle: 90 },
-      { id: 'L',   posName: 'L',   x: 110, y: 390, angle: 90 }
-    ],
-    S6: [
-      { id: 'S',   posName: 'S',   x: 390, y: 560, angle: 90 },
-      { id: 'OH1', posName: 'OH1', x: 250, y: 390, angle: 90 },
-      { id: 'MB1', posName: 'MB1', x: 110, y: 390, angle: 90 },
-      { id: 'OP',  posName: 'OP',  x: 250, y: 600, angle: 90 },
-      { id: 'OH2', posName: 'OH2', x: 390, y: 430, angle: 90 },
-      { id: 'L',   posName: 'L',   x: 110, y: 560, angle: 90 }
-    ]
+  // ローテーションゾーン座標（自陣, x:0-9, y:9-18, 単位m）
+  const ZONE_COORDS = {
+    1: { x: 7.5, y: 16 },   // 後衛右
+    2: { x: 7.5, y: 10.5 }, // 前衛右
+    3: { x: 4.5, y: 10.5 }, // 前衛センター
+    4: { x: 1.5, y: 10.5 }, // 前衛左
+    5: { x: 1.5, y: 16 },   // 後衛左
+    6: { x: 4.5, y: 16 }    // 後衛センター
   };
 
-  let rotationPositions = JSON.parse(JSON.stringify(defaultRotationPositions));
+  // 攻撃者位置のプリセット（ドロップダウンから初期位置としてセットするための値）
+  const ATTACK_PRESETS = {
+    left:   { x: 2,   y: 8.6 },
+    center: { x: 4.5, y: 8.6 },
+    right:  { x: 7,   y: 8.6 }
+  };
+  // 攻撃コースの扇の広がり（半分の幅, m）
+  const ATTACK_SPREAD_HALF = 3.3;
 
-  let benchPlayers = [
-    { id: 'B1', posName: '控えS',  displayName: '鈴木', color: '#2563eb', fwd: 6, bwd: 4, left: 5, right: 5 },
-    { id: 'B2', posName: '控えOH', displayName: '中村', color: '#059669', fwd: 8, bwd: 5, left: 7, right: 7 },
-    { id: 'B3', posName: '控えMB', displayName: '小林', color: '#d97706', fwd: 6, bwd: 3, left: 5, right: 5 }
+  // 守備カバー範囲の換算係数：元HTML版では 1〜10 のスライダー値を
+  // 「12px単位」でコートに描画しており、コートは9m=420pxだった。
+  // そのときの実測換算（12px ÷ 46.67px/m ≒ 0.257m）に合わせることで、
+  // 同じスライダー値でも実寸として広がりすぎないようにしている。
+  const COVER_SCALE = 12 / (420 / 9);
+
+  /* ========================= 状態管理 ========================= */
+  let roster = [
+    { id: "p1", name: "田中" },
+    { id: "p2", name: "鈴木" },
+    { id: "p3", name: "佐藤" },
+    { id: "p4", name: "高橋" },
+    { id: "p5", name: "伊藤" },
+    { id: "p6", name: "渡辺" },
+    { id: "p7", name: "山本" },
+    { id: "p8", name: "中村" }
   ];
 
-  let selectedPosId = 'L';
-  let activeInteraction = null;
-  let touchOffsetX = 0, touchOffsetY = 0;
+  let assignment = { S: "p1", OH1: "p2", MB1: "p3", OP: "p4", OH2: "p5", L: "p6" };
 
-  function getCourtPlayers() {
-    return rotationPositions[currentRotation].map(pos => {
-      const master = playersMaster[pos.id] || { displayName: pos.posName, color: '#3b82f6', fwd: 5, bwd: 5, left: 5, right: 5 };
-      return { ...pos, ...master };
-    });
-  }
-
-  function getSelectedPlayer() {
-    const players = getCourtPlayers();
-    return players.find(p => p.id === selectedPosId) || players[0];
-  }
-
-  function updateUI() {
-    const p = getSelectedPlayer();
-    if (!p) return;
-
-    selectedBadge.textContent = `${p.posName} (${p.displayName})`;
-    selectedBadge.style.backgroundColor = p.color;
-    playerNameInput.value = p.displayName;
-
-    sliders[0].value = p.fwd;   valTexts[0].textContent = `Lv. ${p.fwd}`;
-    sliders[1].value = p.bwd;   valTexts[1].textContent = `Lv. ${p.bwd}`;
-    sliders[2].value = p.left;  valTexts[2].textContent = `Lv. ${p.left}`;
-    sliders[3].value = p.right; valTexts[3].textContent = `Lv. ${p.right}`;
-    sliders[4].value = p.angle; valTexts[4].textContent = `${p.angle}°`;
-
-    renderBenchList();
-  }
-
-  playerNameInput.addEventListener('input', (e) => {
-    if (playersMaster[selectedPosId]) {
-      playersMaster[selectedPosId].displayName = e.target.value;
-    }
-    updateUI();
-    render();
-  });
-
-  const keys = ['fwd', 'bwd', 'left', 'right'];
-  sliders.forEach((slider, idx) => {
-    slider.addEventListener('input', (e) => {
-      const val = parseInt(e.target.value);
-      if (idx < 4) {
-        if (playersMaster[selectedPosId]) {
-          playersMaster[selectedPosId][keys[idx]] = val;
-        }
-      } else {
-        const currentPos = rotationPositions[currentRotation].find(p => p.id === selectedPosId);
-        if (currentPos) currentPos.angle = val;
-      }
-      updateUI();
-      render();
-    });
-  });
-
-  function renderBenchList() {
-    benchList.innerHTML = '';
-    benchPlayers.forEach((bp) => {
-      const item = document.createElement('div');
-      item.className = 'bench-item';
-      item.innerHTML = `
-        <span class="badge" style="background-color: ${bp.color};"></span>
-        <span><b>${bp.displayName}</b> (${bp.posName})</span>
-      `;
-      benchList.appendChild(item);
-    });
-  }
-
-  document.getElementById('openSwapModalBtn').addEventListener('click', () => {
-    modalBenchList.innerHTML = '';
-    if (benchPlayers.length === 0) {
-      modalBenchList.innerHTML = '<div style="font-size:12px; color:#94a3b8;">控え選手がいません。</div>';
-    } else {
-      benchPlayers.forEach((bp, idx) => {
-        const div = document.createElement('div');
-        div.className = 'modal-item';
-        div.innerHTML = `
-          <span><b>${bp.displayName}</b> (${bp.posName})</span>
-          <button class="btn-primary" style="padding:4px 8px; font-size:11px;" onclick="executeSwap(${idx})">交代</button>
-        `;
-        modalBenchList.appendChild(div);
-      });
-    }
-    swapModal.showModal();
-  });
-
-  document.getElementById('closeModalBtn').addEventListener('click', () => swapModal.close());
-
-  window.executeSwap = function(benchIdx) {
-    const currentMaster = playersMaster[selectedPosId];
-    const benchP = benchPlayers[benchIdx];
-
-    playersMaster[selectedPosId] = {
-      displayName: benchP.displayName,
-      color: benchP.color,
-      fwd: benchP.fwd,
-      bwd: benchP.bwd,
-      left: benchP.left,
-      right: benchP.right
-    };
-
-    benchPlayers[benchIdx] = {
-      id: `B_${Date.now()}`,
-      posName: '元スタメン',
-      displayName: currentMaster.displayName,
-      color: currentMaster.color,
-      fwd: currentMaster.fwd,
-      bwd: currentMaster.bwd,
-      left: currentMaster.left,
-      right: currentMaster.right
-    };
-
-    swapModal.close();
-    updateUI();
-    render();
+  // 元HTML版の選手マスターデータと同じ基準値（前・後・左・右, 1〜10）
+  let params = {
+    S:   { front: 7, back: 4, left: 5, right: 6, angle: 0 },
+    OH1: { front: 8, back: 5, left: 7, right: 7, angle: 0 },
+    MB1: { front: 6, back: 3, left: 5, right: 5, angle: 0 },
+    OP:  { front: 8, back: 5, left: 7, right: 7, angle: 0 },
+    OH2: { front: 8, back: 5, left: 7, right: 7, angle: 0 },
+    L:   { front: 9, back: 6, left: 8, right: 8, angle: 0 }
   };
 
-  document.getElementById('addBenchBtn').addEventListener('click', () => {
-    const name = prompt('控え選手の名前を入力してください:', '加藤');
-    if (!name) return;
-    benchPlayers.push({
-      id: `B_${Date.now()}`,
-      posName: '控え',
-      displayName: name,
-      color: '#8b5cf6',
-      fwd: 7, bwd: 5, left: 6, right: 6
-    });
-    updateUI();
-  });
+  let rotation = 1;
+  let selectedRole = "S";
+  let showOverlap = false;
+  let attackEnabled = false;                       // 攻撃コースを表示するか
+  let attackOrigin = { x: 4.5, y: 8.6 };            // 攻撃者位置（ドラッグ可能, 相手コート側 m）
+  let initialPos = positionsFromRotation(rotation);
+  let currentPos = clonePos(initialPos);
+  let displayPos = null; // アニメーション中の表示位置
 
-  const rotButtons = document.querySelectorAll('.rot-btn');
-  rotButtons.forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      rotButtons.forEach(b => b.classList.remove('active'));
-      e.target.classList.add('active');
-
-      currentRotation = e.target.textContent;
-      updateUI();
-      render();
-    });
-  });
-
-  function getSavedPatterns() {
-    return JSON.parse(localStorage.getItem('volleyball_team_patterns')) || {};
+  /* ========================= ユーティリティ ========================= */
+  function clonePos(pos) {
+    const out = {};
+    ROLES.forEach(r => { out[r] = { x: pos[r].x, y: pos[r].y }; });
+    return out;
   }
 
+  function getZoneForRole(role, rot) {
+    const k = ROLES.indexOf(role);
+    return ((k - (rot - 1) + 6) % 6) + 1;
+  }
+
+  function positionsFromRotation(rot) {
+    const pos = {};
+    ROLES.forEach(role => {
+      const zone = getZoneForRole(role, rot);
+      const c = ZONE_COORDS[zone];
+      pos[role] = { x: c.x, y: c.y };
+    });
+    return pos;
+  }
+
+  function playerNameOf(role) {
+    const pid = assignment[role];
+    const p = roster.find(r => r.id === pid);
+    return p ? p.name : "(未割当)";
+  }
+
+  function m2p(x, y) { return { x: x * PPM, y: y * PPM }; }
+
+  function currentStateSnapshot() {
+    return {
+      roster: JSON.parse(JSON.stringify(roster)),
+      assignment: JSON.parse(JSON.stringify(assignment)),
+      params: JSON.parse(JSON.stringify(params)),
+      rotation: rotation,
+      attackEnabled: attackEnabled,
+      attackOrigin: JSON.parse(JSON.stringify(attackOrigin)),
+      currentPos: JSON.parse(JSON.stringify(currentPos))
+    };
+  }
+
+  function applyStateSnapshot(st) {
+    if (st.roster) roster = st.roster;
+    if (st.assignment) assignment = st.assignment;
+    if (st.params) params = st.params;
+    if (st.rotation) rotation = st.rotation;
+    attackEnabled = typeof st.attackEnabled === "boolean" ? st.attackEnabled : false;
+    if (st.attackOrigin) attackOrigin = st.attackOrigin;
+    initialPos = positionsFromRotation(rotation);
+    currentPos = st.currentPos ? st.currentPos : clonePos(initialPos);
+    displayPos = null;
+  }
+
+  /* ===== カバー範囲の楕円ブレンド計算（角度変換に依存しない内積方式） ===== */
+  function facingVectors(deg) {
+    const rad = deg * Math.PI / 180;
+    // deg=0 でネット方向(-y)を向く「コンパス角」
+    const F = { x: Math.sin(rad), y: -Math.cos(rad) };
+    const R = { x: Math.cos(rad), y: Math.sin(rad) };
+    return { F, R };
+  }
+
+  function coverageRadius(p, ux, uy) {
+    const { F, R } = facingVectors(p.angle);
+    const fwd = ux * F.x + uy * F.y;
+    const rgt = ux * R.x + uy * R.y;
+    const Ra = (fwd >= 0 ? p.front : p.back) * COVER_SCALE;
+    const Rb = (rgt >= 0 ? p.right : p.left) * COVER_SCALE;
+    const denom = Math.sqrt(Math.pow(fwd / Ra, 2) + Math.pow(rgt / Rb, 2));
+    return denom > 0 ? 1 / denom : 0;
+  }
+
+  function isCoveredByPlayer(role, pos, px, py) {
+    const c = pos[role];
+    const dx = px - c.x, dy = py - c.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist === 0) return true;
+    const ux = dx / dist, uy = dy / dist;
+    const r = coverageRadius(params[role], ux, uy);
+    return dist <= r;
+  }
+
+  function computeCoveragePercent(pos) {
+    const step = 0.25;
+    let total = 0, covered = 0;
+    for (let x = 0.125; x < 9; x += step) {
+      for (let y = 9.125; y < 18; y += step) {
+        total++;
+        for (let i = 0; i < ROLES.length; i++) {
+          if (isCoveredByPlayer(ROLES[i], pos, x, y)) { covered++; break; }
+        }
+      }
+    }
+    return total > 0 ? Math.round((covered / total) * 100) : 0;
+  }
+
+  /* ========================= キャンバス初期化 ========================= */
+  const canvas = document.getElementById("courtCanvas");
+  const ctx = canvas.getContext("2d");
+
+  function initCanvasResolution() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = LOGICAL_W * dpr;
+    canvas.height = LOGICAL_H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  initCanvasResolution();
+
+  /* ========================= 描画処理 ========================= */
+  function draw() {
+    ctx.clearRect(0, 0, LOGICAL_W, LOGICAL_H);
+
+    drawCourtBackground();
+    drawCourtLines();
+
+    const pos = displayPos || currentPos;
+
+    drawCoverageAreas(pos);
+    if (showOverlap) drawOverlapWarning(pos);
+    drawBlockShadows(pos);
+    drawAttackSector();
+    drawPlayers(pos);
+
+    const pct = computeCoveragePercent(pos);
+    document.getElementById("coveragePercent").textContent = pct + "%";
+  }
+
+  function drawCourtBackground() {
+    // 相手側(上半分) y:0-9
+    ctx.fillStyle = "#1e2a44";
+    ctx.fillRect(0, 0, LOGICAL_W, NET_Y * PPM);
+    // 自陣(下半分) y:9-18
+    ctx.fillStyle = "#132038";
+    ctx.fillRect(0, NET_Y * PPM, LOGICAL_W, LOGICAL_H - NET_Y * PPM);
+  }
+
+  function drawCourtLines() {
+    ctx.strokeStyle = "rgba(248,250,252,0.7)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(1, 1, LOGICAL_W - 2, LOGICAL_H - 2);
+
+    // ネット
+    ctx.beginPath();
+    ctx.moveTo(0, NET_Y * PPM);
+    ctx.lineTo(LOGICAL_W, NET_Y * PPM);
+    ctx.strokeStyle = "#f8fafc";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    // 3mアタックライン（両サイド）
+    ctx.setLineDash([6, 5]);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "rgba(248,250,252,0.4)";
+    [NET_Y - 3, NET_Y + 3].forEach(y => {
+      ctx.beginPath();
+      ctx.moveTo(0, y * PPM);
+      ctx.lineTo(LOGICAL_W, y * PPM);
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = "rgba(248,250,252,0.5)";
+    ctx.font = "10px sans-serif";
+    ctx.fillText("相手コート", 6, 14);
+    ctx.fillText("自陣コート", 6, LOGICAL_H - 8);
+  }
+
+  function drawCoverageAreas(pos) {
+    ROLES.forEach(role => {
+      const c = pos[role];
+      const p = params[role];
+      ctx.beginPath();
+      let first = true;
+      for (let deg = 0; deg <= 360; deg += 8) {
+        const rad = deg * Math.PI / 180;
+        const ux = Math.cos(rad), uy = Math.sin(rad);
+        const r = coverageRadius(p, ux, uy);
+        const wx = c.x + r * ux, wy = c.y + r * uy;
+        const pt = m2p(wx, wy);
+        if (first) { ctx.moveTo(pt.x, pt.y); first = false; }
+        else ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = ROLE_COLORS[role] + "33"; // alpha ~20%
+      ctx.fill();
+      ctx.strokeStyle = ROLE_COLORS[role] + "99";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    });
+  }
+
+  // 2人以上の守備範囲が重なっている領域を赤で警告表示
+  function drawOverlapWarning(pos) {
+    const step = 0.25;
+    ctx.fillStyle = "rgba(239,68,68,0.42)";
+    for (let x = 0.125; x < 9; x += step) {
+      for (let y = 9.125; y < 18; y += step) {
+        let count = 0;
+        for (let i = 0; i < ROLES.length; i++) {
+          if (isCoveredByPlayer(ROLES[i], pos, x, y)) {
+            count++;
+            if (count >= 2) break;
+          }
+        }
+        if (count >= 2) {
+          const p1 = m2p(x - step / 2, y - step / 2);
+          const p2 = m2p(x + step / 2, y + step / 2);
+          ctx.fillRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
+        }
+      }
+    }
+  }
+
+  // 攻撃者位置(m)からコート幅方向に広がる着地エリアの両端(x座標, m)を計算
+  function attackBaseline(o) {
+    let a = o.x - ATTACK_SPREAD_HALF;
+    let b = o.x + ATTACK_SPREAD_HALF;
+    a = Math.max(0, a);
+    b = Math.min(9, b);
+    return { a, b };
+  }
+
+  function drawAttackSector() {
+    if (!attackEnabled) return;
+    const o = attackOrigin;
+    const { a, b } = attackBaseline(o);
+    const origin = m2p(o.x, o.y);
+    const baseLeft = m2p(a, 18);
+    const baseRight = m2p(b, 18);
+
+    ctx.beginPath();
+    ctx.moveTo(origin.x, origin.y);
+    ctx.lineTo(baseLeft.x, baseLeft.y);
+    ctx.lineTo(baseRight.x, baseRight.y);
+    ctx.closePath();
+    ctx.fillStyle = "rgba(239,68,68,0.16)";
+    ctx.fill();
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = "rgba(239,68,68,0.7)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 攻撃者位置マーカー（ドラッグして動かせる）
+    ctx.beginPath();
+    ctx.arc(origin.x, origin.y, 9, 0, Math.PI * 2);
+    ctx.fillStyle = "#ef4444";
+    ctx.fill();
+    ctx.strokeStyle = "#fecaca";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#fff1f2";
+    ctx.font = "bold 8px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("ATK", origin.x, origin.y);
+    ctx.textAlign = "start";
+    ctx.textBaseline = "alphabetic";
+  }
+
+  /* ===== ブロックの影：前衛選手をまとめ、ネット際で狭く奥で広がる
+     曲線的な「影」として描画。攻撃コースが選ばれていれば、
+     攻撃者→ブロックの延長線方向に影を傾ける。 ===== */
+  function computeBlockSegments(pos) {
+    const front = ROLES
+      .filter(r => pos[r].y <= 11.5)
+      .map(r => ({ role: r, x: pos[r].x, y: pos[r].y }))
+      .sort((a, b) => a.x - b.x);
+
+    const segments = [];
+    front.forEach(p => {
+      const last = segments[segments.length - 1];
+      if (last && (p.x - last.maxX) < 1.6) {
+        last.maxX = Math.max(last.maxX, p.x);
+        last.minX = Math.min(last.minX, p.x);
+        last.ySum += p.y;
+        last.count += 1;
+      } else {
+        segments.push({ minX: p.x, maxX: p.x, ySum: p.y, count: 1 });
+      }
+    });
+    return segments.map(s => ({ minX: s.minX, maxX: s.maxX, y: s.ySum / s.count }));
+  }
+
+  function drawBlockShadows(pos) {
+    const segments = computeBlockSegments(pos);
+    segments.forEach(seg => {
+      const centerX = (seg.minX + seg.maxX) / 2;
+      const nearY = seg.y + 0.35;
+      const blockWidth = (seg.maxX - seg.minX) + 1.3;
+
+      // 影の伸びる方向（攻撃者マーカーが表示されていればその方向へ傾ける）
+      let dir = { x: 0, y: 1 };
+      if (attackEnabled) {
+        const o = attackOrigin;
+        let dx = centerX - o.x, dy = nearY - o.y;
+        const len = Math.hypot(dx, dy) || 1;
+        dir = { x: dx / len, y: dy / len };
+        if (dir.y < 0.15) {
+          dir.y = 0.15;
+          const l2 = Math.hypot(dir.x, dir.y);
+          dir.x /= l2; dir.y /= l2;
+        }
+      }
+
+      let length = 6.5;
+      if (dir.y > 0) length = Math.min(length, (17.7 - nearY) / dir.y);
+      if (length < 0.5) return;
+
+      const perp = { x: -dir.y, y: dir.x };
+      const nearCenter = { x: centerX, y: nearY };
+      const farCenter = { x: centerX + dir.x * length, y: nearY + dir.y * length };
+      const nearHalf = blockWidth / 2;
+      const farHalf = nearHalf * 2.3; // 奥にいくほど広がる（遠近感のある影）
+
+      const nearLeft = { x: nearCenter.x - perp.x * nearHalf, y: nearCenter.y - perp.y * nearHalf };
+      const nearRight = { x: nearCenter.x + perp.x * nearHalf, y: nearCenter.y + perp.y * nearHalf };
+      const farLeft = { x: farCenter.x - perp.x * farHalf, y: farCenter.y - perp.y * farHalf };
+      const farRight = { x: farCenter.x + perp.x * farHalf, y: farCenter.y + perp.y * farHalf };
+
+      // 辺を少し外側に膨らませて滑らかな曲線にする
+      const bow = 0.18 * blockWidth;
+      const leftMid = {
+        x: (nearLeft.x + farLeft.x) / 2 - perp.x * bow,
+        y: (nearLeft.y + farLeft.y) / 2 - perp.y * bow
+      };
+      const rightMid = {
+        x: (nearRight.x + farRight.x) / 2 + perp.x * bow,
+        y: (nearRight.y + farRight.y) / 2 + perp.y * bow
+      };
+
+      const pNearLeft = m2p(nearLeft.x, nearLeft.y);
+      const pNearRight = m2p(nearRight.x, nearRight.y);
+      const pFarLeft = m2p(farLeft.x, farLeft.y);
+      const pFarRight = m2p(farRight.x, farRight.y);
+      const pLeftMid = m2p(leftMid.x, leftMid.y);
+      const pRightMid = m2p(rightMid.x, rightMid.y);
+      const pNear = m2p(nearCenter.x, nearCenter.y);
+      const pFar = m2p(farCenter.x, farCenter.y);
+
+      ctx.beginPath();
+      ctx.moveTo(pNearLeft.x, pNearLeft.y);
+      ctx.quadraticCurveTo(pLeftMid.x, pLeftMid.y, pFarLeft.x, pFarLeft.y);
+      ctx.lineTo(pFarRight.x, pFarRight.y);
+      ctx.quadraticCurveTo(pRightMid.x, pRightMid.y, pNearRight.x, pNearRight.y);
+      ctx.closePath();
+
+      const grad = ctx.createLinearGradient(pNear.x, pNear.y, pFar.x, pFar.y);
+      grad.addColorStop(0, "rgba(100,116,139,0.5)");
+      grad.addColorStop(1, "rgba(100,116,139,0.03)");
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.strokeStyle = "rgba(203,213,225,0.35)";
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+  }
+
+  function drawPlayers(pos) {
+    ROLES.forEach(role => {
+      const c = pos[role];
+      const pt = m2p(c.x, c.y);
+      const p = params[role];
+      const radius = 14;
+
+      // 選択リング
+      if (role === selectedRole) {
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, radius + 5, 0, Math.PI * 2);
+        ctx.setLineDash([3, 3]);
+        ctx.strokeStyle = "#fde047";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // 向きインジケーター
+      const { F } = facingVectors(p.angle);
+      const tip = m2p(c.x + F.x * 0.9, c.y + F.y * 0.9);
+      ctx.beginPath();
+      ctx.moveTo(pt.x, pt.y);
+      ctx.lineTo(tip.x, tip.y);
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // 円
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = ROLE_COLORS[role];
+      ctx.fill();
+      ctx.strokeStyle = "#f8fafc";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // 向き変更ハンドル（選択中のみ強調表示）
+      const handlePt = m2p(c.x + F.x * 1.1, c.y + F.y * 1.1);
+      ctx.beginPath();
+      ctx.arc(handlePt.x, handlePt.y, role === selectedRole ? 6 : 4, 0, Math.PI * 2);
+      ctx.fillStyle = role === selectedRole ? "#38bdf8" : "rgba(255,255,255,0.55)";
+      ctx.fill();
+      ctx.strokeStyle = "#f8fafc";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // ロール表記
+      ctx.fillStyle = "#0f172a";
+      ctx.font = "bold 10px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(role, pt.x, pt.y);
+
+      // 選手名
+      ctx.fillStyle = "#f8fafc";
+      ctx.font = "10px sans-serif";
+      ctx.fillText(playerNameOf(role), pt.x, pt.y + radius + 11);
+    });
+    ctx.textAlign = "start";
+    ctx.textBaseline = "alphabetic";
+  }
+
+  /* ========================= 描画スケジューリング ========================= */
+  let drawScheduled = false;
+  function requestDraw() {
+    if (drawScheduled) return;
+    drawScheduled = true;
+    requestAnimationFrame(() => { drawScheduled = false; draw(); });
+  }
+
+  /* ========================= ドラッグ操作（マウス／タッチ両対応） ========================= */
+  let dragging = null;           // 現在ドラッグ中のロール（アタッカーの場合は "ATTACK"）
+  let interactionMode = null;    // 'move' | 'rotate' | 'attack'
+  let dragOffset = { x: 0, y: 0 };
+
+  function getLogicalFromClientXY(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = LOGICAL_W / rect.width;
+    const scaleY = LOGICAL_H / rect.height;
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+  }
+
+  // クリック/タップ位置に最も近い操作対象（向きハンドル／攻撃者マーカー／選手）を
+  // 一括で探す。最も近い候補（かつ当たり判定内）を採用することで、要素が
+  // 近接していても迷わず正しい対象を掴めるようにしている。
+  function findDragTarget(pt) {
+    let best = null;
+    function consider(candidate) {
+      if (!best || candidate.d < best.d) best = candidate;
+    }
+
+    // 選択中選手の向き変更ハンドル
+    {
+      const role = selectedRole;
+      const c = currentPos[role];
+      const p = params[role];
+      const { F } = facingVectors(p.angle);
+      const handleM = { x: c.x + F.x * 1.1, y: c.y + F.y * 1.1 };
+      const hp = m2p(handleM.x, handleM.y);
+      const d = Math.hypot(pt.x - hp.x, pt.y - hp.y);
+      if (d <= 14) consider({ type: "rotate", role, d });
+    }
+
+    // 攻撃者マーカー
+    if (attackEnabled) {
+      const ap = m2p(attackOrigin.x, attackOrigin.y);
+      const d = Math.hypot(pt.x - ap.x, pt.y - ap.y);
+      if (d <= 16) consider({ type: "attack", d });
+    }
+
+    // 選手本体
+    ROLES.forEach(role => {
+      const c = currentPos[role];
+      const p = m2p(c.x, c.y);
+      const d = Math.hypot(pt.x - p.x, pt.y - p.y);
+      if (d <= 18) consider({ type: "move", role, d });
+    });
+
+    return best;
+  }
+
+  function dragStart(clientX, clientY) {
+    const pt = getLogicalFromClientXY(clientX, clientY);
+    const target = findDragTarget(pt);
+    if (!target) return false;
+
+    displayPos = null;
+    canvas.style.cursor = "grabbing";
+
+    if (target.type === "rotate") {
+      dragging = target.role;
+      interactionMode = "rotate";
+      requestDraw();
+      return true;
+    }
+
+    if (target.type === "attack") {
+      dragging = "ATTACK";
+      interactionMode = "attack";
+      const ap = m2p(attackOrigin.x, attackOrigin.y);
+      dragOffset.x = ap.x - pt.x;
+      dragOffset.y = ap.y - pt.y;
+      requestDraw();
+      return true;
+    }
+
+    // move（選手移動）
+    const role = target.role;
+    dragging = role;
+    interactionMode = "move";
+    selectedRole = role;
+    updateParamPanel();
+    renderBenchCard();
+
+    const c = currentPos[role];
+    const p = m2p(c.x, c.y);
+    dragOffset.x = p.x - pt.x;
+    dragOffset.y = p.y - pt.y;
+    requestDraw();
+    return true;
+  }
+
+  function dragMove(clientX, clientY) {
+    if (!dragging) return;
+    const pt = getLogicalFromClientXY(clientX, clientY);
+
+    if (interactionMode === "rotate") {
+      const c = currentPos[dragging];
+      const cp = m2p(c.x, c.y);
+      const vx = pt.x - cp.x, vy = pt.y - cp.y;
+      if (Math.hypot(vx, vy) < 2) return;
+      // facingVectors の逆変換： F=(sin(rad), -cos(rad)) → rad = atan2(vx, -vy)
+      let rad = Math.atan2(vx, -vy);
+      let deg = rad * 180 / Math.PI;
+      deg = ((deg % 360) + 360) % 360;
+      deg = Math.round(deg / 5) * 5;
+      params[dragging].angle = deg;
+      if (dragging === selectedRole) updateParamPanel();
+      requestDraw();
+      return;
+    }
+
+    if (interactionMode === "attack") {
+      const px = pt.x + dragOffset.x;
+      const py = pt.y + dragOffset.y;
+      let mx = px / PPM, my = py / PPM;
+      mx = Math.max(0.2, Math.min(8.8, mx));
+      my = Math.max(0.2, Math.min(8.85, my)); // 相手コート側（ネット手前まで）に制限
+      attackOrigin = { x: mx, y: my };
+      requestDraw();
+      return;
+    }
+
+    // move モード（選手移動）
+    const px = pt.x + dragOffset.x;
+    const py = pt.y + dragOffset.y;
+    let mx = px / PPM, my = py / PPM;
+    mx = Math.max(0.25, Math.min(8.75, mx));
+    my = Math.max(0.25, Math.min(17.75, my));
+    currentPos[dragging] = { x: mx, y: my };
+    requestDraw();
+  }
+
+  function dragEnd() {
+    if (dragging) {
+      dragging = null;
+      interactionMode = null;
+      canvas.style.cursor = "default";
+    }
+  }
+
+  // マウスイベント
+  canvas.addEventListener("mousedown", function (e) {
+    dragStart(e.clientX, e.clientY);
+  });
+  window.addEventListener("mousemove", function (e) {
+    if (dragging) dragMove(e.clientX, e.clientY);
+  });
+  window.addEventListener("mouseup", function () {
+    dragEnd();
+  });
+
+  // タッチイベント
+  canvas.addEventListener("touchstart", function (e) {
+    if (e.touches.length === 0) return;
+    const t = e.touches[0];
+    const started = dragStart(t.clientX, t.clientY);
+    if (started) e.preventDefault();
+  }, { passive: false });
+
+  window.addEventListener("touchmove", function (e) {
+    if (!dragging || e.touches.length === 0) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    dragMove(t.clientX, t.clientY);
+  }, { passive: false });
+
+  window.addEventListener("touchend", function () {
+    dragEnd();
+  }, { passive: true });
+
+  window.addEventListener("touchcancel", function () {
+    dragEnd();
+  }, { passive: true });
+
+  /* ========================= ローテーションUI ========================= */
+  const rotationButtonsEl = document.getElementById("rotationButtons");
+  for (let n = 1; n <= 6; n++) {
+    const btn = document.createElement("button");
+    btn.className = "rotation-btn" + (n === rotation ? " active" : "");
+    btn.textContent = "R" + n;
+    btn.dataset.rot = n;
+    btn.addEventListener("click", function () {
+      rotation = n;
+      initialPos = positionsFromRotation(rotation);
+      currentPos = clonePos(initialPos);
+      displayPos = null;
+      refreshRotationButtons();
+      requestDraw();
+    });
+    rotationButtonsEl.appendChild(btn);
+  }
+  function refreshRotationButtons() {
+    document.querySelectorAll(".rotation-btn").forEach(b => {
+      b.classList.toggle("active", parseInt(b.dataset.rot, 10) === rotation);
+    });
+  }
+
+  /* ========================= 凡例 ========================= */
+  const legendEl = document.getElementById("legend");
+  ROLES.forEach(role => {
+    const span = document.createElement("span");
+    span.innerHTML = '<span class="dot" style="background:' + ROLE_COLORS[role] + '"></span>' +
+      role + " " + ROLE_NAMES_JP[role];
+    legendEl.appendChild(span);
+  });
+
+  document.getElementById("overlapToggle").addEventListener("change", function (e) {
+    showOverlap = e.target.checked;
+    requestDraw();
+  });
+
+  /* ========================= 攻撃コース選択 ========================= */
+  document.getElementById("attackSelect").addEventListener("change", function (e) {
+    const val = e.target.value;
+    if (val === "none") {
+      attackEnabled = false;
+    } else if (ATTACK_PRESETS[val]) {
+      attackEnabled = true;
+      attackOrigin = { x: ATTACK_PRESETS[val].x, y: ATTACK_PRESETS[val].y };
+    }
+    requestDraw();
+  });
+
+  /* ========================= パラメータパネル ========================= */
+  const roleSelectEl = document.getElementById("roleSelect");
+  ROLES.forEach(role => {
+    const opt = document.createElement("option");
+    opt.value = role;
+    opt.textContent = role + "（" + ROLE_NAMES_JP[role] + "）";
+    roleSelectEl.appendChild(opt);
+  });
+  roleSelectEl.addEventListener("change", function (e) {
+    selectedRole = e.target.value;
+    updateParamPanel();
+    renderBenchCard();
+    requestDraw();
+  });
+
+  const sliderFront = document.getElementById("sliderFront");
+  const sliderBack = document.getElementById("sliderBack");
+  const sliderLeft = document.getElementById("sliderLeft");
+  const sliderRight = document.getElementById("sliderRight");
+  const sliderAngle = document.getElementById("sliderAngle");
+  const valFront = document.getElementById("valFront");
+  const valBack = document.getElementById("valBack");
+  const valLeft = document.getElementById("valLeft");
+  const valRight = document.getElementById("valRight");
+  const valAngle = document.getElementById("valAngle");
+  const roleTag = document.getElementById("roleTag");
+  const benchTargetRoleEl = document.getElementById("benchTargetRole");
+
+  function updateParamPanel() {
+    const p = params[selectedRole];
+    roleSelectEl.value = selectedRole;
+    sliderFront.value = p.front; valFront.textContent = p.front;
+    sliderBack.value = p.back; valBack.textContent = p.back;
+    sliderLeft.value = p.left; valLeft.textContent = p.left;
+    sliderRight.value = p.right; valRight.textContent = p.right;
+    sliderAngle.value = p.angle; valAngle.textContent = p.angle;
+    roleTag.textContent = selectedRole;
+    roleTag.style.background = ROLE_COLORS[selectedRole];
+    benchTargetRoleEl.textContent = selectedRole;
+  }
+
+  function bindSlider(slider, valEl, field, isInt) {
+    slider.addEventListener("input", function () {
+      const v = isInt ? parseInt(slider.value, 10) : parseFloat(slider.value);
+      params[selectedRole][field] = v;
+      valEl.textContent = v;
+      requestDraw();
+    });
+  }
+  bindSlider(sliderFront, valFront, "front", false);
+  bindSlider(sliderBack, valBack, "back", false);
+  bindSlider(sliderLeft, valLeft, "left", false);
+  bindSlider(sliderRight, valRight, "right", false);
+  bindSlider(sliderAngle, valAngle, "angle", true);
+
+  /* ========================= 選手名簿 ========================= */
+  const rosterListEl = document.getElementById("rosterList");
+  const assignGridEl = document.getElementById("assignGrid");
+  const benchQuickListEl = document.getElementById("benchQuickList");
+
+  function renderRosterList() {
+    rosterListEl.innerHTML = "";
+    roster.forEach(player => {
+      const item = document.createElement("div");
+      item.className = "roster-item";
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = player.name;
+      const delBtn = document.createElement("button");
+      delBtn.className = "del";
+      delBtn.textContent = "削除";
+      delBtn.addEventListener("click", function () {
+        roster = roster.filter(r => r.id !== player.id);
+        ROLES.forEach(role => {
+          if (assignment[role] === player.id) {
+            assignment[role] = roster.length ? roster[0].id : "";
+          }
+        });
+        renderRosterList();
+        renderAssignGrid();
+        renderBenchCard();
+        requestDraw();
+      });
+      item.appendChild(nameSpan);
+      item.appendChild(delBtn);
+      rosterListEl.appendChild(item);
+    });
+  }
+
+  function renderAssignGrid() {
+    assignGridEl.innerHTML = "";
+    ROLES.forEach(role => {
+      const wrap = document.createElement("div");
+      wrap.className = "assign-item";
+      const label = document.createElement("label");
+      label.textContent = role + "（" + ROLE_NAMES_JP[role] + "）";
+      const select = document.createElement("select");
+      roster.forEach(player => {
+        const opt = document.createElement("option");
+        opt.value = player.id;
+        opt.textContent = player.name;
+        if (assignment[role] === player.id) opt.selected = true;
+        select.appendChild(opt);
+      });
+      select.addEventListener("change", function (e) {
+        assignment[role] = e.target.value;
+        renderBenchCard();
+        requestDraw();
+      });
+      wrap.appendChild(label);
+      wrap.appendChild(select);
+      assignGridEl.appendChild(wrap);
+    });
+  }
+
+  // ベンチ（どのポジションにも割り当てられていない選手）のクイック交代
+  function unassignedRoster() {
+    const assignedIds = new Set(Object.values(assignment));
+    return roster.filter(p => !assignedIds.has(p.id));
+  }
+
+  function renderBenchCard() {
+    benchTargetRoleEl.textContent = selectedRole;
+    benchQuickListEl.innerHTML = "";
+    const bench = unassignedRoster();
+    if (bench.length === 0) {
+      benchQuickListEl.innerHTML = '<div style="font-size:12px;color:#64748b;">ベンチに控え選手がいません</div>';
+      return;
+    }
+    bench.forEach(player => {
+      const item = document.createElement("div");
+      item.className = "roster-item";
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = player.name;
+      const swapBtn = document.createElement("button");
+      swapBtn.className = "primary";
+      swapBtn.textContent = "交代";
+      swapBtn.addEventListener("click", function () {
+        assignment[selectedRole] = player.id;
+        renderAssignGrid();
+        renderBenchCard();
+        requestDraw();
+      });
+      item.appendChild(nameSpan);
+      item.appendChild(swapBtn);
+      benchQuickListEl.appendChild(item);
+    });
+  }
+
+  document.getElementById("addPlayerBtn").addEventListener("click", function () {
+    const input = document.getElementById("newPlayerName");
+    const name = input.value.trim();
+    if (!name) return;
+    roster.push({ id: "p" + Date.now(), name: name });
+    input.value = "";
+    renderRosterList();
+    renderAssignGrid();
+    renderBenchCard();
+  });
+
+  /* ========================= 操作ボタン ========================= */
+  document.getElementById("resetPosBtn").addEventListener("click", function () {
+    initialPos = positionsFromRotation(rotation);
+    currentPos = clonePos(initialPos);
+    displayPos = null;
+    requestDraw();
+  });
+
+  let isAnimating = false;
+  function playAnimation() {
+    if (isAnimating) return;
+    isAnimating = true;
+    const start = performance.now();
+    const duration = 900;
+    const from = clonePos(initialPos);
+    const to = clonePos(currentPos);
+
+    function step(now) {
+      const t = Math.min(1, (now - start) / duration);
+      const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      const disp = {};
+      ROLES.forEach(role => {
+        disp[role] = {
+          x: from[role].x + (to[role].x - from[role].x) * ease,
+          y: from[role].y + (to[role].y - from[role].y) * ease
+        };
+      });
+      displayPos = disp;
+      draw();
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else {
+        isAnimating = false;
+        displayPos = null;
+        draw();
+      }
+    }
+    requestAnimationFrame(step);
+  }
+  document.getElementById("playAnimBtn").addEventListener("click", playAnimation);
+
+  document.getElementById("saveImageBtn").addEventListener("click", function () {
+    try {
+      const link = document.createElement("a");
+      link.download = "volleyball_defense.png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } catch (err) {
+      showToast("画像の保存に失敗しました");
+    }
+  });
+
+  /* ========================= URL共有 ========================= */
+  function encodeState() {
+    return btoa(unescape(encodeURIComponent(JSON.stringify(currentStateSnapshot()))));
+  }
+  function decodeState(str) {
+    return JSON.parse(decodeURIComponent(escape(atob(str))));
+  }
+
+  document.getElementById("shareUrlBtn").addEventListener("click", async function () {
+    const encoded = encodeState();
+    const url = location.origin + location.pathname + "#state=" + encoded;
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast("URLをクリップボードにコピーしました");
+    } catch (err) {
+      window.prompt("以下のURLをコピーしてください:", url);
+    }
+  });
+
+  function showToast(msg) {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 2200);
+  }
+
+  /* ========================= チームパターン保存・読み込み ========================= */
+  function getSavedPatterns() {
+    try {
+      return JSON.parse(localStorage.getItem(PATTERN_KEY)) || {};
+    } catch (err) {
+      return {};
+    }
+  }
+  function savePatternsToStorage(obj) {
+    try {
+      localStorage.setItem(PATTERN_KEY, JSON.stringify(obj));
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  const patternSelectEl = document.getElementById("patternSelect");
   function updatePatternSelect() {
     const patterns = getSavedPatterns();
-    patternSelect.innerHTML = '<option value="">-- パターン選択 --</option>';
+    patternSelectEl.innerHTML = '<option value="">-- パターンを選択 --</option>';
     Object.keys(patterns).forEach(name => {
-      const opt = document.createElement('option');
+      const opt = document.createElement("option");
       opt.value = name;
       opt.textContent = name;
-      patternSelect.appendChild(opt);
+      patternSelectEl.appendChild(opt);
     });
   }
 
-  document.getElementById('savePatternBtn').addEventListener('click', () => {
-    const name = prompt('保存するパターン名を入力してください:');
+  document.getElementById("savePatternBtn").addEventListener("click", function () {
+    const name = window.prompt("保存するパターン名を入力してください:");
     if (!name) return;
     const patterns = getSavedPatterns();
-    patterns[name] = { playersMaster, rotationPositions, benchPlayers };
-    localStorage.setItem('volleyball_team_patterns', JSON.stringify(patterns));
-    updatePatternSelect();
-    patternSelect.value = name;
-    alert(`パターン「${name}」を保存しました。`);
+    patterns[name] = currentStateSnapshot();
+    if (savePatternsToStorage(patterns)) {
+      updatePatternSelect();
+      patternSelectEl.value = name;
+      showToast("パターン「" + name + "」を保存しました");
+    } else {
+      showToast("保存に失敗しました（この環境ではローカル保存が利用できません）");
+    }
   });
 
-  document.getElementById('deletePatternBtn').addEventListener('click', () => {
-    const name = patternSelect.value;
-    if (!name) return alert('削除するパターンを選択してください。');
-    if (confirm(`「${name}」を削除してもよろしいですか？`)) {
+  document.getElementById("deletePatternBtn").addEventListener("click", function () {
+    const name = patternSelectEl.value;
+    if (!name) { showToast("削除するパターンを選択してください"); return; }
+    if (window.confirm("「" + name + "」を削除してもよろしいですか？")) {
       const patterns = getSavedPatterns();
       delete patterns[name];
-      localStorage.setItem('volleyball_team_patterns', JSON.stringify(patterns));
+      savePatternsToStorage(patterns);
       updatePatternSelect();
     }
   });
 
-  patternSelect.addEventListener('change', (e) => {
+  patternSelectEl.addEventListener("change", function (e) {
     const name = e.target.value;
     if (!name) return;
     const patterns = getSavedPatterns();
     if (patterns[name]) {
-      playersMaster = patterns[name].playersMaster;
-      rotationPositions = patterns[name].rotationPositions;
-      benchPlayers = patterns[name].benchPlayers || [];
-      updateUI();
-      render();
+      applyStateSnapshot(patterns[name]);
+      renderRosterList();
+      renderAssignGrid();
+      renderBenchCard();
+      updateParamPanel();
+      refreshRotationButtons();
+      document.getElementById("attackSelect").value = "none";
+      requestDraw();
+      showToast("パターン「" + name + "」を読み込みました");
     }
   });
 
-  // --- 描画関数群 ---
-  function drawCourt() {
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(court.x, court.y, court.w, court.h);
-
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
-    ctx.fillRect(court.x, court.y, court.w, court.netY - court.y);
-
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(court.x, court.netY - 100); ctx.lineTo(court.x + court.w, court.netY - 100); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(court.x, court.netY + 100); ctx.lineTo(court.x + court.w, court.netY + 100); ctx.stroke();
-
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(court.x, court.y, court.w, court.h);
-
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.moveTo(court.x - 10, court.netY);
-    ctx.lineTo(court.x + court.w + 10, court.netY);
-    ctx.stroke();
-  }
-
-  function createSmoothPath(ctx, rFwd, rBwd, rLeft, rRight) {
-    const K = 0.5522847;
-    ctx.beginPath();
-    ctx.moveTo(0, -rFwd);
-    ctx.bezierCurveTo(rRight * K, -rFwd, rRight, -rFwd * K, rRight, 0);
-    ctx.bezierCurveTo(rRight, rBwd * K, rRight * K, rBwd, 0, rBwd);
-    ctx.bezierCurveTo(-rLeft * K, rBwd, -rLeft, rBwd * K, -rLeft, 0);
-    ctx.bezierCurveTo(-rLeft, -rFwd * K, -rLeft * K, -rFwd, 0, -rFwd);
-    ctx.closePath();
-  }
-
-  function drawDefenseAreas() {
-    const courtPlayers = getCourtPlayers();
-    courtPlayers.forEach(p => {
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(((p.angle - 90) * Math.PI) / 180);
-
-      const rFwd   = p.fwd * 12;
-      const rBwd   = p.bwd * 12;
-      const rLeft  = p.left * 12;
-      const rRight = p.right * 12;
-
-      createSmoothPath(ctx, rFwd, rBwd, rLeft, rRight);
-
-      ctx.fillStyle = p.color + '44'; // 各自の持ち色を透過描画
-      ctx.fill();
-      ctx.strokeStyle = p.color + 'aa';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      ctx.restore();
-    });
-  }
-
-  function isPointInPlayerRange(px, py, p) {
-    const rad = -((p.angle - 90) * Math.PI) / 180;
-    const dx = px - p.x;
-    const dy = py - p.y;
-
-    const lx = dx * Math.cos(rad) - dy * Math.sin(rad);
-    const ly = dx * Math.sin(rad) + dy * Math.cos(rad);
-
-    const rx = (lx >= 0) ? p.right * 12 : p.left * 12;
-    const ry = (ly < 0)  ? p.fwd * 12   : p.bwd * 12;
-
-    return ((lx * lx) / (rx * rx) + (ly * ly) / (ry * ry)) <= 1.0;
-  }
-
-  // 重なった警告領域を赤色（塗りつぶし）で表示する処理
-  function drawOverlapAreaRed() {
-    const courtPlayers = getCourtPlayers();
-    const step = 6; // グリッド描画の解像度（数値が小さいほど滑らか）
-
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.45)'; // 警告の鮮やかな赤（半透明）
-
-    for (let gy = court.netY; gy <= court.y + court.h; gy += step) {
-      for (let gx = court.x; gx <= court.x + court.w; gx += step) {
-        let count = 0;
-        courtPlayers.forEach(p => {
-          if (isPointInPlayerRange(gx, gy, p)) count++;
-        });
-
-        // 2人以上の守備範囲が重複している場合、そのピクセル（領域）を赤く塗る
-        if (count >= 2) {
-          ctx.fillRect(gx - step/2, gy - step/2, step + 1, step + 1);
-        }
-      }
+  /* ========================= 初期化 ========================= */
+  function restoreFromHash() {
+    if (!location.hash.startsWith("#state=")) return false;
+    try {
+      const st = decodeState(location.hash.slice(7));
+      applyStateSnapshot(st);
+      return true;
+    } catch (err) {
+      console.warn("state parse failed", err);
+      return false;
     }
   }
 
-  function drawPlayers() {
-    const courtPlayers = getCourtPlayers();
-    courtPlayers.forEach(p => {
-      const isSelected = (p.id === selectedPosId);
+  const restored = restoreFromHash();
 
-      if (isSelected) {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 30, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(37, 99, 235, 0.2)';
-        ctx.fill();
-      }
-
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 22, 0, Math.PI * 2);
-      ctx.fillStyle = p.color;
-      ctx.fill();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = isSelected ? 3 : 2;
-      ctx.stroke();
-
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(((p.angle - 90) * Math.PI) / 180);
-
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(0, -32);
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-
-      if (isSelected) {
-        ctx.beginPath();
-        ctx.arc(0, -42, 8, 0, Math.PI * 2);
-        ctx.fillStyle = '#38bdf8';
-        ctx.fill();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-
-      ctx.restore();
-
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(p.displayName || p.posName, p.x, p.y);
-    });
-  }
-
-  function render() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawCourt();
-    drawDefenseAreas();
-    drawOverlapAreaRed(); // 警告エリア（重なり部分）の赤色塗りを描画
-    drawPlayers();
-  }
-
-  // タップ・操作イベント
-  function getCanvasPos(e) {
-    const rect = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return {
-      x: (clientX - rect.left) * (canvas.width / rect.width),
-      y: (clientY - rect.top) * (canvas.height / rect.height)
-    };
-  }
-
-  function getAngleFromPoint(px, py, mx, my) {
-    const rad = Math.atan2(my - py, mx - px);
-    let deg = Math.round((rad * 180) / Math.PI) + 90;
-    if (deg > 180) deg -= 360;
-    if (deg < -180) deg += 360;
-    return deg;
-  }
-
-  function handleStart(e) {
-    const pos = getCanvasPos(e);
-    const courtPlayers = getCourtPlayers();
-    const selectedP = getSelectedPlayer();
-
-    if (selectedP) {
-      const rad = ((selectedP.angle - 90) * Math.PI) / 180;
-      const handleX = selectedP.x + 42 * Math.cos(rad);
-      const handleY = selectedP.y + 42 * Math.sin(rad);
-
-      if (Math.hypot(handleX - pos.x, handleY - pos.y) < 22) {
-        activeInteraction = 'rotate';
-        e.preventDefault();
-        return;
-      }
-    }
-
-    for (let i = courtPlayers.length - 1; i >= 0; i--) {
-      const p = courtPlayers[i];
-      if (Math.hypot(p.x - pos.x, p.y - pos.y) < 32) {
-        activeInteraction = 'move';
-        selectedPosId = p.id;
-        touchOffsetX = pos.x - p.x;
-        touchOffsetY = pos.y - p.y;
-        updateUI();
-        render();
-        e.preventDefault();
-        return;
-      }
-    }
-  }
-
-  function handleMove(e) {
-    if (!activeInteraction) return;
-    e.preventDefault();
-    const pos = getCanvasPos(e);
-    const currentPos = rotationPositions[currentRotation].find(p => p.id === selectedPosId);
-    if (!currentPos) return;
-
-    if (activeInteraction === 'move') {
-      currentPos.x = Math.max(court.x, Math.min(court.x + court.w, pos.x - touchOffsetX));
-      currentPos.y = Math.max(court.netY + 15, Math.min(court.y + court.h, pos.y - touchOffsetY));
-    } else if (activeInteraction === 'rotate') {
-      currentPos.angle = getAngleFromPoint(currentPos.x, currentPos.y, pos.x, pos.y);
-      updateUI();
-    }
-    render();
-  }
-
-  function handleEnd() {
-    activeInteraction = null;
-  }
-
-  canvas.addEventListener('mousedown', handleStart);
-  canvas.addEventListener('mousemove', handleMove);
-  canvas.addEventListener('mouseup', handleEnd);
-  canvas.addEventListener('touchstart', handleStart, { passive: false });
-  canvas.addEventListener('touchmove', handleMove, { passive: false });
-  canvas.addEventListener('touchend', handleEnd);
-
-  // 初期化
   updatePatternSelect();
-  updateUI();
-  render();
+  renderRosterList();
+  renderAssignGrid();
+  renderBenchCard();
+  updateParamPanel();
+
+  if (restored) {
+    refreshRotationButtons();
+    document.getElementById("attackSelect").value = "none";
+  }
+
+  requestDraw();
+})();
 </script>
 </body>
 </html>
