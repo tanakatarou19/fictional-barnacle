@@ -208,6 +208,30 @@
   <div class="card">
     <h2>ローテーション</h2>
     <div class="row" id="rotationButtons"></div>
+
+    <div class="row" style="margin-top:10px;">
+      <button id="serveOwnBtn" class="rotation-btn">自チームサーブ</button>
+      <button id="serveOppBtn" class="rotation-btn">相手サーブ（レシーブ）</button>
+    </div>
+    <div class="hint">サーブ権によって基本の立ち位置（初期位置）を切り替えられます</div>
+
+    <div class="row" style="margin-top:10px;">
+      <button id="resetPosBtn">位置リセット</button>
+      <button id="saveBaseBtn">現在の配置を基本位置として保存</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>動きのコマ登録（レシーブ→アタック→カバーなど）</h2>
+    <div class="roster-list" id="stageList"></div>
+    <div class="row">
+      <button id="addStageBtn" class="primary">＋ 現在の配置をコマ登録</button>
+      <button id="clearStagesBtn" class="danger">コマをクリア</button>
+    </div>
+    <div class="row" style="margin-top:8px;">
+      <button id="playAnimBtn" class="primary">▶ 動きを再生</button>
+    </div>
+    <div class="hint">基本位置 → 登録した各コマ → 現在の配置 の順に自動でアニメーション再生します</div>
   </div>
 
   <div class="card">
@@ -231,7 +255,14 @@
       <option value="center">センターから開始</option>
       <option value="right">ライトから開始</option>
     </select>
-    <div class="hint">赤い「ATK」マーカーをドラッグすると、左右だけでなく前後（バックアタックの深さ）も自由に調整できます。ブロックの影の向きも位置に応じて傾きます</div>
+    <div class="row" style="margin-top:8px;">
+      <select id="attackCourseSelect" style="flex:1;">
+        <option value="straight">ストレート</option>
+        <option value="cross">クロス</option>
+        <option value="feint">フェイント（プッシュ）</option>
+      </select>
+    </div>
+    <div class="hint">赤い「ATK」マーカーをドラッグすると、左右・前後（バックアタックの深さ）とも自由に調整できます。コース（ストレート／クロス／フェイント）に応じてアタックコースとブロックの影の向きが変わります</div>
   </div>
 
   <div class="card">
@@ -285,8 +316,6 @@
   <div class="card">
     <h2>操作</h2>
     <div class="row">
-      <button id="resetPosBtn">位置リセット</button>
-      <button id="playAnimBtn">動きを再生</button>
       <button id="saveImageBtn">画像保存</button>
       <button id="shareUrlBtn" class="primary">URL共有</button>
     </div>
@@ -370,7 +399,11 @@
   let showOverlap = false;
   let attackEnabled = false;                       // 攻撃コースを表示するか
   let attackOrigin = { x: 4.5, y: 8.6 };            // 攻撃者位置（ドラッグ可能, 相手コート側 m）
-  let initialPos = positionsFromRotation(rotation);
+  let courseType = "straight";                      // 'straight' | 'cross' | 'feint'
+  let serveState = "own";                           // 'own'（自チームサーブ） | 'opp'（相手サーブ＝レシーブ）
+  let customBases = {};                             // { "R_state": pos } ユーザーが保存した基本位置
+  let stages = [];                                  // [{ label, pos }] 動きの中間コマ
+  let initialPos = getBasePos(rotation, serveState);
   let currentPos = clonePos(initialPos);
   let displayPos = null; // アニメーション中の表示位置
 
@@ -396,6 +429,15 @@
     return pos;
   }
 
+  // サーブ権（自チーム／相手）ごとに、ユーザーが保存した基本位置があればそれを、
+  // なければローテーションの標準フォーメーションを返す
+  function baseKey(rot, sState) { return rot + "_" + sState; }
+  function getBasePos(rot, sState) {
+    const key = baseKey(rot, sState);
+    if (customBases[key]) return clonePos(customBases[key]);
+    return positionsFromRotation(rot);
+  }
+
   function playerNameOf(role) {
     const pid = assignment[role];
     const p = roster.find(r => r.id === pid);
@@ -412,6 +454,10 @@
       rotation: rotation,
       attackEnabled: attackEnabled,
       attackOrigin: JSON.parse(JSON.stringify(attackOrigin)),
+      courseType: courseType,
+      serveState: serveState,
+      customBases: JSON.parse(JSON.stringify(customBases)),
+      stages: JSON.parse(JSON.stringify(stages)),
       currentPos: JSON.parse(JSON.stringify(currentPos))
     };
   }
@@ -423,7 +469,11 @@
     if (st.rotation) rotation = st.rotation;
     attackEnabled = typeof st.attackEnabled === "boolean" ? st.attackEnabled : false;
     if (st.attackOrigin) attackOrigin = st.attackOrigin;
-    initialPos = positionsFromRotation(rotation);
+    courseType = st.courseType || "straight";
+    serveState = st.serveState || "own";
+    customBases = st.customBases || {};
+    stages = st.stages || [];
+    initialPos = getBasePos(rotation, serveState);
     currentPos = st.currentPos ? st.currentPos : clonePos(initialPos);
     displayPos = null;
   }
@@ -588,32 +638,56 @@
     }
   }
 
-  // 攻撃者位置(m)からコート幅方向に広がる着地エリアの両端(x座標, m)を計算
-  function attackBaseline(o) {
-    let a = o.x - ATTACK_SPREAD_HALF;
-    let b = o.x + ATTACK_SPREAD_HALF;
-    a = Math.max(0, a);
-    b = Math.min(9, b);
-    return { a, b };
+  // 攻撃コースの種類に応じた色
+  const COURSE_COLORS = {
+    straight: { fill: "rgba(239,68,68,0.16)", stroke: "rgba(239,68,68,0.75)", marker: "#ef4444", markerEdge: "#fecaca" },
+    cross:    { fill: "rgba(249,115,22,0.16)", stroke: "rgba(249,115,22,0.8)", marker: "#f97316", markerEdge: "#fed7aa" },
+    feint:    { fill: "rgba(168,85,247,0.18)", stroke: "rgba(168,85,247,0.8)", marker: "#a855f7", markerEdge: "#e9d5ff" }
+  };
+  const COURSE_LABELS = { straight: "ストレート", cross: "クロス", feint: "フェイント" };
+
+  // 攻撃者位置(m)とコース種別から、着地エリアの両端(x, m)と奥行き(y, m)を計算
+  // straight: 打点付近をまっすぐ落とすストレート（幅は狭め）
+  // cross:    コートの反対サイドへ角度をつけて打つクロス（幅は広め）
+  // feint:    ブロックのすぐ後ろに落とす短いフェイント／プッシュ
+  function attackBaseline(o, type) {
+    if (type === "feint") {
+      const half = 1.2;
+      const a = Math.max(0, o.x - half);
+      const b = Math.min(9, o.x + half);
+      return { a, b, targetY: 11.3 };
+    }
+    if (type === "cross") {
+      const mirrorX = 9 - o.x;
+      const a = Math.max(0, mirrorX - ATTACK_SPREAD_HALF);
+      const b = Math.min(9, mirrorX + ATTACK_SPREAD_HALF);
+      return { a, b, targetY: 18 };
+    }
+    // straight
+    const half = ATTACK_SPREAD_HALF * 0.55;
+    const a = Math.max(0, o.x - half);
+    const b = Math.min(9, o.x + half);
+    return { a, b, targetY: 18 };
   }
 
   function drawAttackSector() {
     if (!attackEnabled) return;
     const o = attackOrigin;
-    const { a, b } = attackBaseline(o);
+    const colors = COURSE_COLORS[courseType] || COURSE_COLORS.straight;
+    const { a, b, targetY } = attackBaseline(o, courseType);
     const origin = m2p(o.x, o.y);
-    const baseLeft = m2p(a, 18);
-    const baseRight = m2p(b, 18);
+    const baseLeft = m2p(a, targetY);
+    const baseRight = m2p(b, targetY);
 
     ctx.beginPath();
     ctx.moveTo(origin.x, origin.y);
     ctx.lineTo(baseLeft.x, baseLeft.y);
     ctx.lineTo(baseRight.x, baseRight.y);
     ctx.closePath();
-    ctx.fillStyle = "rgba(239,68,68,0.16)";
+    ctx.fillStyle = colors.fill;
     ctx.fill();
     ctx.setLineDash([5, 4]);
-    ctx.strokeStyle = "rgba(239,68,68,0.7)";
+    ctx.strokeStyle = colors.stroke;
     ctx.lineWidth = 1.5;
     ctx.stroke();
     ctx.setLineDash([]);
@@ -621,9 +695,9 @@
     // 攻撃者位置マーカー（ドラッグして動かせる）
     ctx.beginPath();
     ctx.arc(origin.x, origin.y, 9, 0, Math.PI * 2);
-    ctx.fillStyle = "#ef4444";
+    ctx.fillStyle = colors.marker;
     ctx.fill();
-    ctx.strokeStyle = "#fecaca";
+    ctx.strokeStyle = colors.markerEdge;
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.fillStyle = "#fff1f2";
@@ -862,7 +936,7 @@
     const target = findDragTarget(pt);
     if (!target) return false;
 
-    displayPos = null;
+    cancelAnimation();
     canvas.style.cursor = "grabbing";
 
     if (target.type === "rotate") {
@@ -990,19 +1064,84 @@
     btn.dataset.rot = n;
     btn.addEventListener("click", function () {
       rotation = n;
-      initialPos = positionsFromRotation(rotation);
+      initialPos = getBasePos(rotation, serveState);
       currentPos = clonePos(initialPos);
       displayPos = null;
+      stages = [];
+      renderStageList();
       refreshRotationButtons();
       requestDraw();
     });
     rotationButtonsEl.appendChild(btn);
   }
   function refreshRotationButtons() {
-    document.querySelectorAll(".rotation-btn").forEach(b => {
+    rotationButtonsEl.querySelectorAll(".rotation-btn").forEach(b => {
       b.classList.toggle("active", parseInt(b.dataset.rot, 10) === rotation);
     });
   }
+
+  /* ========================= サーブ権（自チーム／相手）切り替え ========================= */
+  const serveOwnBtn = document.getElementById("serveOwnBtn");
+  const serveOppBtn = document.getElementById("serveOppBtn");
+  function refreshServeButtons() {
+    serveOwnBtn.classList.toggle("active", serveState === "own");
+    serveOppBtn.classList.toggle("active", serveState === "opp");
+  }
+  function switchServeState(next) {
+    serveState = next;
+    initialPos = getBasePos(rotation, serveState);
+    currentPos = clonePos(initialPos);
+    displayPos = null;
+    stages = [];
+    renderStageList();
+    refreshServeButtons();
+    requestDraw();
+  }
+  serveOwnBtn.addEventListener("click", function () { switchServeState("own"); });
+  serveOppBtn.addEventListener("click", function () { switchServeState("opp"); });
+  refreshServeButtons();
+
+  document.getElementById("saveBaseBtn").addEventListener("click", function () {
+    customBases[baseKey(rotation, serveState)] = clonePos(currentPos);
+    initialPos = clonePos(currentPos);
+    showToast("現在の配置を「" + (serveState === "own" ? "自チームサーブ" : "相手サーブ") + " R" + rotation + "」の基本位置として保存しました");
+  });
+
+  /* ========================= 動きのコマ登録 ========================= */
+  const stageListEl = document.getElementById("stageList");
+  function renderStageList() {
+    stageListEl.innerHTML = "";
+    if (stages.length === 0) {
+      stageListEl.innerHTML = '<div style="font-size:12px;color:#64748b;">まだコマが登録されていません（基本位置 → 現在の配置のみで再生されます）</div>';
+      return;
+    }
+    stages.forEach((stage, idx) => {
+      const item = document.createElement("div");
+      item.className = "roster-item";
+      const label = document.createElement("span");
+      label.textContent = "コマ" + (idx + 1) + "：" + stage.label;
+      const delBtn = document.createElement("button");
+      delBtn.className = "del";
+      delBtn.textContent = "削除";
+      delBtn.addEventListener("click", function () {
+        stages.splice(idx, 1);
+        renderStageList();
+      });
+      item.appendChild(label);
+      item.appendChild(delBtn);
+      stageListEl.appendChild(item);
+    });
+  }
+  document.getElementById("addStageBtn").addEventListener("click", function () {
+    stages.push({ label: "配置" + (stages.length + 1), pos: clonePos(currentPos) });
+    renderStageList();
+    showToast("現在の配置をコマ" + stages.length + "として登録しました");
+  });
+  document.getElementById("clearStagesBtn").addEventListener("click", function () {
+    stages = [];
+    renderStageList();
+  });
+  renderStageList();
 
   /* ========================= 凡例 ========================= */
   const legendEl = document.getElementById("legend");
@@ -1027,6 +1166,11 @@
       attackEnabled = true;
       attackOrigin = { x: ATTACK_PRESETS[val].x, y: ATTACK_PRESETS[val].y };
     }
+    requestDraw();
+  });
+
+  document.getElementById("attackCourseSelect").addEventListener("change", function (e) {
+    courseType = e.target.value;
     requestDraw();
   });
 
@@ -1191,42 +1335,72 @@
 
   /* ========================= 操作ボタン ========================= */
   document.getElementById("resetPosBtn").addEventListener("click", function () {
-    initialPos = positionsFromRotation(rotation);
+    initialPos = getBasePos(rotation, serveState);
     currentPos = clonePos(initialPos);
     displayPos = null;
     requestDraw();
   });
 
   let isAnimating = false;
+  let animationToken = 0;
+  function cancelAnimation() {
+    animationToken++;
+    isAnimating = false;
+    displayPos = null;
+  }
+
+  // seq: 位置オブジェクトの配列。隣り合う2つの間を順番にアニメーションでつなぐ
+  function animateSequence(seq) {
+    if (seq.length < 2) return;
+    const myToken = ++animationToken;
+    isAnimating = true;
+    let segIndex = 0;
+    const duration = 800;
+
+    function playSegment() {
+      if (myToken !== animationToken) return; // 途中でキャンセルされた
+      const from = seq[segIndex];
+      const to = seq[segIndex + 1];
+      const start = performance.now();
+
+      function step(now) {
+        if (myToken !== animationToken) return; // 途中でキャンセルされた
+        const t = Math.min(1, (now - start) / duration);
+        const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+        const disp = {};
+        ROLES.forEach(role => {
+          disp[role] = {
+            x: from[role].x + (to[role].x - from[role].x) * ease,
+            y: from[role].y + (to[role].y - from[role].y) * ease
+          };
+        });
+        displayPos = disp;
+        draw();
+        if (t < 1) {
+          requestAnimationFrame(step);
+        } else {
+          segIndex++;
+          if (segIndex < seq.length - 1) {
+            requestAnimationFrame(playSegment);
+          } else {
+            isAnimating = false;
+            displayPos = null;
+            draw();
+          }
+        }
+      }
+      requestAnimationFrame(step);
+    }
+    playSegment();
+  }
+
+  // 基本位置 → 登録した各コマ → 現在の配置 の順にアニメーション再生
   function playAnimation() {
     if (isAnimating) return;
-    isAnimating = true;
-    const start = performance.now();
-    const duration = 900;
-    const from = clonePos(initialPos);
-    const to = clonePos(currentPos);
-
-    function step(now) {
-      const t = Math.min(1, (now - start) / duration);
-      const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-      const disp = {};
-      ROLES.forEach(role => {
-        disp[role] = {
-          x: from[role].x + (to[role].x - from[role].x) * ease,
-          y: from[role].y + (to[role].y - from[role].y) * ease
-        };
-      });
-      displayPos = disp;
-      draw();
-      if (t < 1) {
-        requestAnimationFrame(step);
-      } else {
-        isAnimating = false;
-        displayPos = null;
-        draw();
-      }
-    }
-    requestAnimationFrame(step);
+    const seq = [clonePos(initialPos)];
+    stages.forEach(s => seq.push(clonePos(s.pos)));
+    seq.push(clonePos(currentPos));
+    animateSequence(seq);
   }
   document.getElementById("playAnimBtn").addEventListener("click", playAnimation);
 
@@ -1242,19 +1416,82 @@
   });
 
   /* ========================= URL共有 ========================= */
-  function encodeState() {
-    return btoa(unescape(encodeURIComponent(JSON.stringify(currentStateSnapshot()))));
+  // Base64 → URL安全な文字列（+ / = を使わない）に変換／復元
+  function base64ToUrlSafe(b64) {
+    return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   }
-  function decodeState(str) {
-    return JSON.parse(decodeURIComponent(escape(atob(str))));
+  function urlSafeToBase64(str) {
+    let b64 = str.replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4 !== 0) b64 += "=";
+    return b64;
+  }
+
+  // JSON文字列をUint8Arrayに変換／復元（日本語などのマルチバイト文字も安全に扱う）
+  function utf8ToBytes(str) { return new TextEncoder().encode(str); }
+  function bytesToUtf8(bytes) { return new TextDecoder().decode(bytes); }
+
+  function bytesToBase64(bytes) {
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
+  function base64ToBytes(b64) {
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  // gzip圧縮（対応ブラウザのみ）＋URL安全Base64化。先頭に "1:" を付けて圧縮版であることを示す。
+  // 非対応ブラウザでは "0:" 付きの無圧縮Base64にフォールバックする。
+  async function encodeState() {
+    const json = JSON.stringify(currentStateSnapshot());
+    if (window.CompressionStream) {
+      try {
+        const stream = new Blob([json]).stream().pipeThrough(new CompressionStream("gzip"));
+        const compressed = new Uint8Array(await new Response(stream).arrayBuffer());
+        return "1:" + base64ToUrlSafe(bytesToBase64(compressed));
+      } catch (err) {
+        // 圧縮に失敗した場合は無圧縮にフォールバック
+      }
+    }
+    return "0:" + base64ToUrlSafe(bytesToBase64(utf8ToBytes(json)));
+  }
+
+  // "1:"(gzip) / "0:"(無圧縮) いずれの形式もデコード可能。
+  // 接頭辞が無い古い形式のURL（本機能を追加する前に発行されたリンク）にも対応する。
+  async function decodeState(str) {
+    let version = null, payload = str;
+    if (str.length > 2 && (str[0] === "0" || str[0] === "1") && str[1] === ":") {
+      version = str[0];
+      payload = str.slice(2);
+    }
+    const bytes = base64ToBytes(urlSafeToBase64(payload));
+
+    if (version === "1") {
+      if (!window.DecompressionStream) {
+        throw new Error("このブラウザは圧縮されたURLの展開に対応していません");
+      }
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+      const json = await new Response(stream).text();
+      return JSON.parse(json);
+    }
+    // version === "0" または旧形式（接頭辞なし）
+    return JSON.parse(bytesToUtf8(bytes));
   }
 
   document.getElementById("shareUrlBtn").addEventListener("click", async function () {
-    const encoded = encodeState();
+    let encoded;
+    try {
+      encoded = await encodeState();
+    } catch (err) {
+      showToast("URLの作成に失敗しました");
+      return;
+    }
     const url = location.origin + location.pathname + "#state=" + encoded;
     try {
       await navigator.clipboard.writeText(url);
-      showToast("URLをクリップボードにコピーしました");
+      showToast("URLをクリップボードにコピーしました（圧縮済み・全" + url.length + "文字）");
     } catch (err) {
       window.prompt("以下のURLをコピーしてください:", url);
     }
@@ -1332,17 +1569,20 @@
       renderBenchCard();
       updateParamPanel();
       refreshRotationButtons();
+      refreshServeButtons();
+      renderStageList();
       document.getElementById("attackSelect").value = "none";
+      document.getElementById("attackCourseSelect").value = courseType;
       requestDraw();
       showToast("パターン「" + name + "」を読み込みました");
     }
   });
 
   /* ========================= 初期化 ========================= */
-  function restoreFromHash() {
+  async function restoreFromHash() {
     if (!location.hash.startsWith("#state=")) return false;
     try {
-      const st = decodeState(location.hash.slice(7));
+      const st = await decodeState(location.hash.slice(7));
       applyStateSnapshot(st);
       return true;
     } catch (err) {
@@ -1351,20 +1591,23 @@
     }
   }
 
-  const restored = restoreFromHash();
+  restoreFromHash().then(function (restored) {
+    updatePatternSelect();
+    renderRosterList();
+    renderAssignGrid();
+    renderBenchCard();
+    updateParamPanel();
 
-  updatePatternSelect();
-  renderRosterList();
-  renderAssignGrid();
-  renderBenchCard();
-  updateParamPanel();
+    if (restored) {
+      refreshRotationButtons();
+      refreshServeButtons();
+      renderStageList();
+      document.getElementById("attackSelect").value = "none";
+      document.getElementById("attackCourseSelect").value = courseType;
+    }
 
-  if (restored) {
-    refreshRotationButtons();
-    document.getElementById("attackSelect").value = "none";
-  }
-
-  requestDraw();
+    requestDraw();
+  });
 })();
 </script>
 </body>
